@@ -36,26 +36,21 @@ class SaudApp extends StatelessWidget {
 }
 
 
-//Teste de commit 34pajogo 5
 
-//-*-*****-*---*-*-******-*---*-*****-*--*-***--*--*
+
+
+
+
+
+
+
+
+
+
+
+// -*-*****-*---*-*-******-*---*-*****-*--*-***--*--*
 // Flutter code sample for main  antigo
 /*
-
-
-
-
-
-
-
-
-
-
-import 'package:flutter/material.dart';
-
-void main() {
-  runApp(const MyApp());
-}
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
