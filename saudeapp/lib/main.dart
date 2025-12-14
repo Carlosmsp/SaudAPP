@@ -35,8 +35,6 @@ class SaudApp extends StatelessWidget {
   }
 }
 
-//teste
-
 
 
 
@@ -168,7 +166,3 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 }
-
-//novo teste
-
-// teste 3
