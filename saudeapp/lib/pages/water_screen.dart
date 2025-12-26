@@ -10,7 +10,7 @@ class WaterScreen extends StatefulWidget {
 class _WaterScreenState extends State<WaterScreen> {
   final int _metaDiaria = 2000;
   int _consumido = 0;
-  List<int> _historico = [];
+  final List<int> _historico = [];
 
   void _adicionarAgua(int ml) {
     setState(() {
