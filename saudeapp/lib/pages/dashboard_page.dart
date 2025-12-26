@@ -1,10 +1,23 @@
 import 'package:flutter/material.dart';
+// import 'package:supabase_flutter/supabase_flutter.dart'; // Podes manter ou apagar. Neste ficheiro já não estamos a usar diretamente, mas no projeto continua a funcionar!
+import 'water_screen.dart';
 
-class DashboardPage extends StatelessWidget {
+class DashboardPage extends StatefulWidget {
   final String nomeUsuario;
+  final int userId;
 
-  // Construtor: Exige que se passe o nome do utilizador
-  const DashboardPage({super.key, required this.nomeUsuario});
+  const DashboardPage({
+    super.key,
+    required this.nomeUsuario,
+    required this.userId,
+  });
+
+  @override
+  State<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage> {
+  // Retirei a função beberAgua() daqui porque agora vamos gerir isso dentro da própria página "WaterScreen"
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +50,7 @@ class DashboardPage extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      "Olá, $nomeUsuario!",
+                      "Olá, ${widget.nomeUsuario.split(' ').first}!",
                       style: const TextStyle(
                         fontSize: 26,
                         fontWeight: FontWeight.bold,
@@ -59,13 +72,37 @@ class DashboardPage extends StatelessWidget {
                 crossAxisSpacing: 15,
                 mainAxisSpacing: 15,
                 children: [
-                  _botaoDashboard(Icons.water_drop, "ÁGUA", Colors.cyan),
-                  _botaoDashboard(Icons.restaurant, "REFEIÇÕES", Colors.orange),
-                  _botaoDashboard(Icons.bed, "DORMIR", Colors.indigoAccent),
                   _botaoDashboard(
-                    Icons.directions_run,
-                    "ATIVIDADE",
-                    Colors.green,
+                    icon: Icons.water_drop,
+                    label: "ÁGUA",
+                    color: Colors.cyan,
+                    onTap: () {
+                      // AQUI ESTÁ A LIGAÇÃO AO NOVO ECRÃ:
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const WaterScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _botaoDashboard(
+                    icon: Icons.restaurant,
+                    label: "REFEIÇÕES",
+                    color: Colors.orange,
+                    onTap: () {},
+                  ),
+                  _botaoDashboard(
+                    icon: Icons.bed,
+                    label: "DORMIR",
+                    color: Colors.indigoAccent,
+                    onTap: () {},
+                  ),
+                  _botaoDashboard(
+                    icon: Icons.directions_run,
+                    label: "ATIVIDADE",
+                    color: Colors.green,
+                    onTap: () {},
                   ),
                 ],
               ),
@@ -93,33 +130,43 @@ class DashboardPage extends StatelessWidget {
     );
   }
 
-  Widget _botaoDashboard(IconData icon, String label, Color color) {
-    return Container(
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.4),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 50, color: Colors.white),
-          const SizedBox(height: 10),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
+  Widget _botaoDashboard({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              // CORREÇÃO DO AVISO AQUI (withValues em vez de withOpacity):
+              color: color.withValues(alpha: 0.4),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
             ),
-          ),
-        ],
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 50, color: Colors.white),
+            const SizedBox(height: 10),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

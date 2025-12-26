@@ -16,89 +16,84 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _fazerLogin() async {
     setState(() => _isLoading = true);
-    final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
-
     try {
-      final data = await Supabase.instance.client
+      final supabase = Supabase.instance.client;
+
+      // Validação direta na tabela utilizadores (conforme a tua imagem da DB)
+      final response = await supabase
           .from('utilizadores')
           .select()
-          .eq('email', email)
-          .eq('password_hash', password)
+          .eq('email', _emailController.text.trim())
+          .eq('password_hash', _passwordController.text.trim())
           .maybeSingle();
 
-      if (data != null && mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => DashboardPage(nomeUsuario: data['nome']),
-          ),
-        );
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Email ou password errados!'),
-            backgroundColor: Colors.red,
-          ),
-        );
+      if (mounted) {
+        if (response != null) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => DashboardPage(
+                nomeUsuario: response['nome'],
+                userId: response['id_utilizador'],
+              ),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Email ou Password incorretos"), backgroundColor: Colors.red),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erro: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Erro de ligação: $e"), backgroundColor: Colors.red),
+        );
       }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
-    if (mounted) setState(() => _isLoading = false);
   }
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
     return Scaffold(
       extendBodyBehindAppBar: true,
+      // REPOSIÇÃO DO BOTÃO VOLTAR
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.white),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white, size: 30),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
-      body: SingleChildScrollView(
-        child: Container(
-          width: double.infinity,
-          constraints: BoxConstraints(minHeight: size.height),
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xFF00C6FB), Color(0xFF005BEA)],
-            ),
+      body: Container(
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF00C6FB), Color(0xFF005BEA)],
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(30),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const SizedBox(height: 60),
-                Image.asset('assets/images/logo.png', height: 120),
-                const Text(
-                  "SaudApp",
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black54,
-                  ),
-                ),
+                Image.asset('assets/images/logo.png', height: 180),
                 const SizedBox(height: 40),
                 Container(
-                  padding: const EdgeInsets.all(32),
+                  padding: const EdgeInsets.all(25),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
+                    borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10),
+                        blurRadius: 15,
                       ),
                     ],
                   ),
@@ -106,50 +101,26 @@ class _LoginPageState extends State<LoginPage> {
                     children: [
                       TextField(
                         controller: _emailController,
-                        decoration: InputDecoration(
-                          hintText: 'Email',
-                          filled: true,
-                          fillColor: Colors.grey[100],
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
+                        decoration: const InputDecoration(labelText: "Email"),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 15),
                       TextField(
                         controller: _passwordController,
                         obscureText: true,
-                        decoration: InputDecoration(
-                          hintText: 'Password',
-                          filled: true,
-                          fillColor: Colors.grey[100],
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
+                        decoration: const InputDecoration(labelText: "Password"),
                       ),
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: ElevatedButton(
-                          onPressed: _isLoading ? null : _fazerLogin,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0099CC),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                      const SizedBox(height: 30),
+                      _isLoading
+                          ? const CircularProgressIndicator()
+                          : ElevatedButton(
+                              onPressed: _fazerLogin,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blueAccent,
+                                minimumSize: const Size(double.infinity, 50),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                              child: const Text("ENTRAR", style: TextStyle(color: Colors.white)),
                             ),
-                          ),
-                          child: _isLoading
-                              ? const CircularProgressIndicator(
-                                  color: Colors.white,
-                                )
-                              : const Text('Entrar'),
-                        ),
-                      ),
                     ],
                   ),
                 ),
