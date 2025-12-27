@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'water_screen.dart';
 import 'activity_screen.dart';
+import 'meals_screen.dart';
 
 class DashboardPage extends StatefulWidget {
   final String nomeUsuario;
@@ -72,7 +73,8 @@ class _DashboardPageState extends State<DashboardPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => WaterScreen(userId: widget.userId),
+                          builder: (context) =>
+                              WaterScreen(userId: widget.userId),
                         ),
                       );
                     },
@@ -81,7 +83,15 @@ class _DashboardPageState extends State<DashboardPage> {
                     icon: Icons.restaurant,
                     label: "REFEIÇÕES",
                     color: Colors.orange,
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              MealsScreen(userId: widget.userId),
+                        ),
+                      );
+                    },
                   ),
                   _botaoDashboard(
                     icon: Icons.bed,
@@ -97,11 +107,12 @@ class _DashboardPageState extends State<DashboardPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => ActivityScreen(userId: widget.userId),
+                          builder: (context) =>
+                              ActivityScreen(userId: widget.userId),
                         ),
                       );
                     },
-                  ), // O parêntesis extra foi removido daqui!
+                  ),
                 ],
               ),
             ),
