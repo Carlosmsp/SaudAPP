@@ -13,12 +13,8 @@ class WaterScreen extends StatefulWidget {
 class _WaterScreenState extends State<WaterScreen> {
   final int _metaDiaria = 2000;
   int _consumido = 0;
-<<<<<<< HEAD
   bool _isLoading = true;
   List<int> _historicoIds = [];
-=======
-  final List<int> _historico = [];
->>>>>>> 23279e08287cb517baea27446e86f80b14b07a8e
 
   @override
   void initState() {
