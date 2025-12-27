@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../repositories/habitos_repository.dart';
 
 class MealsScreen extends StatefulWidget {
@@ -184,11 +182,11 @@ class _MealsScreenState extends State<MealsScreen> {
                         "FALTA",
                       ),
                       _info(
-                        "${_totalCalorias} kcal",
+                        "$_totalCalorias kcal",
                         "HOJE",
                       ),
                       _info(
-                        "${_metaCalorias} kcal",
+                        "$_totalCalorias kcal",
                         "META",
                       ),
                     ],
