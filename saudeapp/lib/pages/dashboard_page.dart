@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-// import 'package:supabase_flutter/supabase_flutter.dart'; // Podes manter ou apagar. Neste ficheiro já não estamos a usar diretamente, mas no projeto continua a funcionar!
 import 'water_screen.dart';
+import 'activity_screen.dart';
 
 class DashboardPage extends StatefulWidget {
   final String nomeUsuario;
@@ -17,8 +17,6 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
-  // Retirei a função beberAgua() daqui porque agora vamos gerir isso dentro da própria página "WaterScreen"
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -32,12 +30,6 @@ class _DashboardPageState extends State<DashboardPage> {
         elevation: 0,
         centerTitle: true,
         automaticallyImplyLeading: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings, color: Colors.black),
-            onPressed: () {},
-          ),
-        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(20.0),
@@ -80,8 +72,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) =>
-                              WaterScreen(userId: widget.userId),
+                          builder: (context) => WaterScreen(userId: widget.userId),
                         ),
                       );
                     },
@@ -102,8 +93,15 @@ class _DashboardPageState extends State<DashboardPage> {
                     icon: Icons.directions_run,
                     label: "ATIVIDADE",
                     color: Colors.green,
-                    onTap: () {},
-                  ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ActivityScreen(userId: widget.userId),
+                        ),
+                      );
+                    },
+                  ), // O parêntesis extra foi removido daqui!
                 ],
               ),
             ),
@@ -116,14 +114,8 @@ class _DashboardPageState extends State<DashboardPage> {
         unselectedItemColor: Colors.grey,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Dashboard'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.track_changes),
-            label: 'Objetivos',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.notifications),
-            label: 'Lembretes',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.track_changes), label: 'Objetivos'),
+          BottomNavigationBarItem(icon: Icon(Icons.notifications), label: 'Lembretes'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
         ],
       ),
@@ -145,7 +137,6 @@ class _DashboardPageState extends State<DashboardPage> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              // CORREÇÃO DO AVISO AQUI (withValues em vez de withOpacity):
               color: color.withValues(alpha: 0.4),
               blurRadius: 10,
               offset: const Offset(0, 5),
