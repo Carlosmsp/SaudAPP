@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../repositories/habitos_repository.dart';
+
 
 class WaterScreen extends StatefulWidget {
   final int userId;
@@ -16,6 +18,8 @@ class _WaterScreenState extends State<WaterScreen> {
   bool _isLoading = true;
   List<int> _historicoIds = [];
 
+  late final HabitosRepository _repo = HabitosRepository.fromSupabase();
+
   @override
   void initState() {
     super.initState();
@@ -23,74 +27,60 @@ class _WaterScreenState extends State<WaterScreen> {
   }
 
   Future<void> _carregarDados() async {
-    final supabase = Supabase.instance.client;
-    final hoje = DateTime.now().toIso8601String().split('T')[0];
+    setState(() => _isLoading = true);
 
     try {
-      final data = await supabase
-          .from('historico_agua')
-          .select('id, quantidade_ml')
-          .eq('id_utilizador', widget.userId)
-          .gte('data_registo', hoje);
+      final data = await _repo.obterConsumoAguaDoDia(widget.userId);
 
-      int total = 0;
-      List<int> ids = [];
-      for (var item in data) {
-        total += item['quantidade_ml'] as int;
-        ids.add(item['id'] as int);
-      }
+      if (!mounted) return;
 
-      if (mounted) {
-        setState(() {
-          _consumido = total;
-          _historicoIds = ids;
-          _isLoading = false;
-        });
-      }
+      setState(() {
+        _consumido = data.totalMl;
+        _historicoIds = List<int>.from(data.registoIds);
+        _isLoading = false;
+      });
     } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
+      if (!mounted) return;
+      setState(() => _isLoading = false);
     }
   }
 
+
   Future<void> _adicionarAgua(int ml) async {
-    final supabase = Supabase.instance.client;
     setState(() => _consumido += ml);
 
     try {
-      final response = await supabase.from('historico_agua').insert({
-        'id_utilizador': widget.userId,
-        'quantidade_ml': ml,
-      }).select();
+      final id = await _repo.registarAgua(widget.userId, ml);
 
-      setState(() => _historicoIds.add(response[0]['id'] as int));
+      if (!mounted) return;
+      setState(() => _historicoIds.add(id));
     } catch (e) {
+      // Se deu erro no Supabase, desfaz o valor local
+      if (!mounted) return;
       setState(() => _consumido -= ml);
     }
   }
 
+
   Future<void> _desfazer() async {
     if (_historicoIds.isEmpty) return;
-    final supabase = Supabase.instance.client;
+
     final ultimoId = _historicoIds.last;
 
     try {
-      final data = await supabase
-          .from('historico_agua')
-          .select('quantidade_ml')
-          .eq('id', ultimoId)
-          .single();
+      final ml = await _repo.apagarRegistoAgua(ultimoId);
 
-      int valor = data['quantidade_ml'];
-      await supabase.from('historico_agua').delete().eq('id', ultimoId);
-
+      if (!mounted) return;
       setState(() {
-        _consumido -= valor;
+        _consumido -= ml;
         _historicoIds.removeLast();
       });
     } catch (e) {
-      _carregarDados();
+      // Se algo correr mal, recarrega do servidor para ficar consistente
+      await _carregarDados();
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
