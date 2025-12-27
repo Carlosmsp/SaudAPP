@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class WaterScreen extends StatefulWidget {
-  const WaterScreen({super.key});
+  final int userId;
+
+  const WaterScreen({super.key, required this.userId});
 
   @override
   State<WaterScreen> createState() => _WaterScreenState();
@@ -10,58 +13,117 @@ class WaterScreen extends StatefulWidget {
 class _WaterScreenState extends State<WaterScreen> {
   final int _metaDiaria = 2000;
   int _consumido = 0;
-  List<int> _historico = [];
+  bool _isLoading = true;
+  List<int> _historicoIds = [];
 
-  void _adicionarAgua(int ml) {
-    setState(() {
-      _consumido += ml;
-      _historico.add(ml);
-    });
+  @override
+  void initState() {
+    super.initState();
+    _carregarDados();
   }
 
-  void _desfazerUltimo() {
-    if (_historico.isNotEmpty) {
+  Future<void> _carregarDados() async {
+    final supabase = Supabase.instance.client;
+    final hoje = DateTime.now().toIso8601String().split('T')[0];
+
+    try {
+      final data = await supabase
+          .from('historico_agua')
+          .select('id, quantidade_ml')
+          .eq('id_utilizador', widget.userId)
+          .gte('data_registo', hoje);
+
+      int total = 0;
+      List<int> ids = [];
+      for (var item in data) {
+        total += item['quantidade_ml'] as int;
+        ids.add(item['id'] as int);
+      }
+
+      if (mounted) {
+        setState(() {
+          _consumido = total;
+          _historicoIds = ids;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _adicionarAgua(int ml) async {
+    final supabase = Supabase.instance.client;
+    setState(() => _consumido += ml);
+
+    try {
+      final response = await supabase.from('historico_agua').insert({
+        'id_utilizador': widget.userId,
+        'quantidade_ml': ml,
+      }).select();
+
+      setState(() => _historicoIds.add(response[0]['id'] as int));
+    } catch (e) {
+      setState(() => _consumido -= ml);
+    }
+  }
+
+  Future<void> _desfazer() async {
+    if (_historicoIds.isEmpty) return;
+    final supabase = Supabase.instance.client;
+    final ultimoId = _historicoIds.last;
+
+    try {
+      final data = await supabase
+          .from('historico_agua')
+          .select('quantidade_ml')
+          .eq('id', ultimoId)
+          .single();
+
+      int valor = data['quantidade_ml'];
+      await supabase.from('historico_agua').delete().eq('id', ultimoId);
+
       setState(() {
-        int ultimo = _historico.removeLast();
-        _consumido -= ultimo;
+        _consumido -= valor;
+        _historicoIds.removeLast();
       });
+    } catch (e) {
+      _carregarDados();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Cálculo do progresso (0.0 a 1.0)
     double progresso = (_consumido / _metaDiaria).clamp(0.0, 1.0);
 
     return Scaffold(
-      // Fundo azul escuro profundo (estilo Waterlogged)
       backgroundColor: const Color(0xFF0F1B2B),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
-          "Hidratação",
-          style: TextStyle(fontWeight: FontWeight.w300),
-        ),
         centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text("Hidratação", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w300)),
         actions: [
-          if (_historico.isNotEmpty)
+          if (_historicoIds.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.undo, color: Colors.orangeAccent),
-              onPressed: _desfazerUltimo,
+              onPressed: _desfazer,
             ),
         ],
       ),
-      body: Column(
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator(color: Colors.blueAccent)) 
+        : Column(
         children: [
-          const SizedBox(height: 10),
-          // --- GARRAFA VISUAL ---
           Expanded(
             child: Center(
               child: Stack(
                 alignment: Alignment.bottomCenter,
                 children: [
-                  // Sombra/Contorno da Garrafa
                   Container(
                     width: 160,
                     height: 400,
@@ -71,14 +133,12 @@ class _WaterScreenState extends State<WaterScreen> {
                       borderRadius: BorderRadius.circular(40),
                     ),
                   ),
-                  // Água Animada
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 800),
-                    curve: Curves.easeInOutSine,
+                    curve: Curves.easeOutQuart,
                     width: 156,
                     height: 396 * progresso,
                     decoration: BoxDecoration(
-                      // Gradiente para dar efeito de profundidade à água
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
@@ -95,27 +155,15 @@ class _WaterScreenState extends State<WaterScreen> {
                       ),
                     ),
                   ),
-                  // Texto de Percentagem centralizado
                   Positioned(
                     bottom: 180,
                     child: Column(
                       children: [
                         Text(
                           "${(progresso * 100).toInt()}%",
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 48,
-                            fontWeight: FontWeight.w100,
-                          ),
+                          style: const TextStyle(color: Colors.white, fontSize: 48, fontWeight: FontWeight.w100),
                         ),
-                        const Text(
-                          "CONCLUÍDO",
-                          style: TextStyle(
-                            color: Colors.white54,
-                            fontSize: 10,
-                            letterSpacing: 2,
-                          ),
-                        ),
+                        const Text("CONCLUÍDO", style: TextStyle(color: Colors.white54, fontSize: 10, letterSpacing: 2)),
                       ],
                     ),
                   ),
@@ -123,51 +171,29 @@ class _WaterScreenState extends State<WaterScreen> {
               ),
             ),
           ),
-
-          // --- INFO INFERIOR ---
           Container(
             padding: const EdgeInsets.symmetric(vertical: 20),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _infoColuna("${_metaDiaria - _consumido}ml", "FALTA"),
-                _infoColuna("${_consumido}ml", "HOJE"),
-                _infoColuna("${_metaDiaria}ml", "META"),
+                _info("${(_metaDiaria - _consumido).clamp(0, 9999)}ml", "FALTA"),
+                _info("${_consumido}ml", "HOJE"),
+                _info("${_metaDiaria}ml", "META"),
               ],
             ),
           ),
-
-          // --- SEÇÃO DE BOTÕES (BRANCA NO FUNDO) ---
           Container(
-            padding: const EdgeInsets.only(
-              top: 30,
-              bottom: 40,
-              left: 20,
-              right: 20,
-            ),
+            padding: const EdgeInsets.only(top: 30, bottom: 40, left: 20, right: 20),
             decoration: const BoxDecoration(
-              color: Color(0xFFE3F2FD), // Azul clarinho para os botões
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(40),
-                topRight: Radius.circular(40),
-              ),
+              color: Color(0xFFE3F2FD),
+              borderRadius: BorderRadius.only(topLeft: Radius.circular(40), topRight: Radius.circular(40)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _botaoIcone(
-                  Icons.local_drink_outlined,
-                  "250ml",
-                  () => _adicionarAgua(250),
-                ),
-                _botaoIcone(
-                  Icons.water_drop_outlined,
-                  "500ml",
-                  () => _adicionarAgua(500),
-                ),
-                _botaoIcone(Icons.add_circle_outline, "Custom", () {
-                  // Aqui poderias abrir um diálogo para inserir valor manual
-                }),
+                _btn(Icons.local_drink_outlined, "250ml", () => _adicionarAgua(250)),
+                _btn(Icons.water_drop_outlined, "500ml", () => _adicionarAgua(500)),
+                _btn(Icons.add_circle_outline, "Custom", _custom),
               ],
             ),
           ),
@@ -176,54 +202,36 @@ class _WaterScreenState extends State<WaterScreen> {
     );
   }
 
-  Widget _infoColuna(String valor, String label) {
-    return Column(
-      children: [
-        Text(
-          valor,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white38,
-            fontSize: 12,
-            letterSpacing: 1.5,
-          ),
-        ),
-      ],
-    );
-  }
+  Widget _info(String v, String l) => Column(children: [
+    Text(v, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+    Text(l, style: const TextStyle(color: Colors.white38, fontSize: 11, letterSpacing: 1.2)),
+  ]);
 
-  Widget _botaoIcone(IconData icone, String label, VoidCallback acao) {
-    return InkWell(
-      onTap: acao,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.blue.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icone, size: 30, color: Colors.blue.shade700),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Colors.blue.shade900,
-            ),
-          ),
-        ],
+  Widget _btn(IconData i, String l, VoidCallback a) => InkWell(
+    onTap: a,
+    child: Column(children: [
+      Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.blue.withValues(alpha: 0.1), shape: BoxShape.circle),
+        child: Icon(i, size: 30, color: Colors.blue.shade700),
       ),
-    );
+      const SizedBox(height: 8),
+      Text(l, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+    ]),
+  );
+
+  void _custom() {
+    final c = TextEditingController();
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text("Quantidade (ml)"),
+      content: TextField(controller: c, keyboardType: TextInputType.number),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Sair")),
+        ElevatedButton(onPressed: () {
+          final v = int.tryParse(c.text);
+          if (v != null && v > 0) { _adicionarAgua(v); Navigator.pop(ctx); }
+        }, child: const Text("OK")),
+      ],
+    ));
   }
 }

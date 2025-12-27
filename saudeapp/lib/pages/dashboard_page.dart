@@ -77,11 +77,11 @@ class _DashboardPageState extends State<DashboardPage> {
                     label: "ÁGUA",
                     color: Colors.cyan,
                     onTap: () {
-                      // AQUI ESTÁ A LIGAÇÃO AO NOVO ECRÃ:
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const WaterScreen(),
+                          builder: (context) =>
+                              WaterScreen(userId: widget.userId),
                         ),
                       );
                     },
