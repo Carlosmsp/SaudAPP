@@ -19,47 +19,60 @@ class _LoginPageState extends State<LoginPage> {
     try {
       final supabase = Supabase.instance.client;
 
-      // Validação direta na tabela utilizadores (conforme a tua imagem da DB)
-      final response = await supabase
-          .from('utilizadores')
-          .select()
-          .eq('email', _emailController.text.trim())
-          .eq('password_hash', _passwordController.text.trim())
-          .maybeSingle();
+      // 1. LOGIN SEGURO (Valida no Auth, não na tabela pública)
+      // Resolve o problema da password estar NULL na tabela utilizadores
+      final AuthResponse res = await supabase.auth.signInWithPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+      );
 
-      if (mounted) {
-        if (response != null) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => DashboardPage(
-                nomeUsuario: response['nome'],
-                userId: response['id_utilizador'],
+      if (res.user != null && mounted) {
+        // 2. BUSCAR PERFIL (Vai buscar o nome e o ID_UTILIZADOR)
+        final data = await supabase
+            .from('utilizadores')
+            .select('id_utilizador, nome')
+            .eq('user_id', res.user!.id)
+            .maybeSingle();
+
+        if (mounted) {
+          if (data != null) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => DashboardPage(
+                  nomeUsuario: data['nome'],
+                  userId: data['id_utilizador'],
+                ),
               ),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Email ou Password incorretos"), backgroundColor: Colors.red),
-          );
+            );
+          } else {
+            _mostrarErro("Erro: Perfil não encontrado na base de dados.");
+          }
         }
       }
+    } on AuthException catch (e) {
+      if (mounted) _mostrarErro(e.message);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erro de ligação: $e"), backgroundColor: Colors.red),
-        );
-      }
+      if (mounted) _mostrarErro("Erro inesperado: $e");
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _mostrarErro(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: true,
-      // REPOSIÇÃO DO BOTÃO VOLTAR
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -92,6 +105,7 @@ class _LoginPageState extends State<LoginPage> {
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
+                        // CORREÇÃO DO AVISO: Usando withValues em vez de withOpacity
                         color: Colors.black.withValues(alpha: 0.1),
                         blurRadius: 15,
                       ),
@@ -101,13 +115,20 @@ class _LoginPageState extends State<LoginPage> {
                     children: [
                       TextField(
                         controller: _emailController,
-                        decoration: const InputDecoration(labelText: "Email"),
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: const InputDecoration(
+                          labelText: "Email",
+                          prefixIcon: Icon(Icons.email_outlined),
+                        ),
                       ),
                       const SizedBox(height: 15),
                       TextField(
                         controller: _passwordController,
                         obscureText: true,
-                        decoration: const InputDecoration(labelText: "Password"),
+                        decoration: const InputDecoration(
+                          labelText: "Password",
+                          prefixIcon: Icon(Icons.lock_outline),
+                        ),
                       ),
                       const SizedBox(height: 30),
                       _isLoading
@@ -117,9 +138,17 @@ class _LoginPageState extends State<LoginPage> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.blueAccent,
                                 minimumSize: const Size(double.infinity, 50),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
                               ),
-                              child: const Text("ENTRAR", style: TextStyle(color: Colors.white)),
+                              child: const Text(
+                                "ENTRAR",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                     ],
                   ),
