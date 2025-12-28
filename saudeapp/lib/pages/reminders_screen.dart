@@ -568,6 +568,11 @@ class _RemindersScreenState extends State<RemindersScreen> {
   }
 
   Widget _buildCardRefeicoes() {
+    String format(TimeOfDay t) =>
+        "${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}";
+    final resumoHorarios =
+        "Peq ${format(_horaPeqAlmoco)} • Alm ${format(_horaAlmoco)} • Lan ${format(_horaLanche)} • Jan ${format(_horaJantar)}";
+
     return InkWell(
       onTap: _editarRefeicoes,
       borderRadius: BorderRadius.circular(15),
@@ -606,10 +611,28 @@ class _RemindersScreenState extends State<RemindersScreen> {
               ),
             ),
             const SizedBox(width: 15),
-            const Expanded(
-              child: Text(
-                "Refeições",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Refeições",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  Text(
+                    _descRefeicoes,
+                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    resumoHorarios,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.orange,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
             ),
             Switch(
@@ -624,7 +647,12 @@ class _RemindersScreenState extends State<RemindersScreen> {
   }
 
   Future<void> _editarRefeicoes() async {
+    TimeOfDay pTemp = _horaPeqAlmoco;
+    TimeOfDay aTemp = _horaAlmoco;
+    TimeOfDay lTemp = _horaLanche;
+    TimeOfDay jTemp = _horaJantar;
     final controller = TextEditingController(text: _descRefeicoes);
+
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -633,43 +661,101 @@ class _RemindersScreenState extends State<RemindersScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
       ),
       builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                "Configurar Refeições",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
               ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: controller,
-                decoration: const InputDecoration(
-                  labelText: "Mensagem geral",
-                  border: OutlineInputBorder(),
-                ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    "Configurar Refeições",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
+                  const SizedBox(height: 20),
+                  _buildTimeTile(
+                    ctx,
+                    "Pequeno-almoço",
+                    pTemp,
+                    (t) => setModalState(() => pTemp = t),
+                  ),
+                  _buildTimeTile(
+                    ctx,
+                    "Almoço",
+                    aTemp,
+                    (t) => setModalState(() => aTemp = t),
+                  ),
+                  _buildTimeTile(
+                    ctx,
+                    "Lanche",
+                    lTemp,
+                    (t) => setModalState(() => lTemp = t),
+                  ),
+                  _buildTimeTile(
+                    ctx,
+                    "Jantar",
+                    jTemp,
+                    (t) => setModalState(() => jTemp = t),
+                  ),
+                  const SizedBox(height: 15),
+                  TextField(
+                    controller: controller,
+                    decoration: const InputDecoration(
+                      labelText: "Mensagem",
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.cyan,
+                      minimumSize: const Size(double.infinity, 50),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _horaPeqAlmoco = pTemp;
+                        _horaAlmoco = aTemp;
+                        _horaLanche = lTemp;
+                        _horaJantar = jTemp;
+                        _descRefeicoes = controller.text;
+                      });
+                      Navigator.pop(ctx);
+                    },
+                    child: const Text(
+                      "OK",
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.cyan,
-                  minimumSize: const Size(double.infinity, 50),
-                ),
-                onPressed: () {
-                  setState(() => _descRefeicoes = controller.text);
-                  Navigator.pop(ctx);
-                },
-                child: const Text("OK", style: TextStyle(color: Colors.white)),
-              ),
-            ],
-          ),
+            );
+          },
         );
+      },
+    );
+  }
+
+  Widget _buildTimeTile(
+    BuildContext ctx,
+    String label,
+    TimeOfDay time,
+    Function(TimeOfDay) onPick,
+  ) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(label, style: const TextStyle(fontSize: 14)),
+      trailing: Text(
+        time.format(ctx),
+        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.cyan),
+      ),
+      onTap: () async {
+        final p = await showTimePicker(context: ctx, initialTime: time);
+        if (p != null) onPick(p);
       },
     );
   }
