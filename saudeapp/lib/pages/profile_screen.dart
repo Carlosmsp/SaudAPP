@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
-import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'login_page.dart';
 
 class ProfileScreen extends StatefulWidget {
   final int userId;
@@ -20,14 +21,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _metaSonoController = TextEditingController();
   final _metaAtividadeController = TextEditingController();
   final _metaCaloriasController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
 
   String _sexo = 'M';
+  String? _fotoUrl;
   bool _isLoading = true;
-
-  String? _avatarUrl;
-  File? _avatarFile;
 
   @override
   void initState() {
@@ -45,8 +42,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _metaSonoController.dispose();
     _metaAtividadeController.dispose();
     _metaCaloriasController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -57,49 +52,247 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .select()
           .eq('id_utilizador', widget.userId)
           .single();
+      final user = Supabase.instance.client.auth.currentUser;
 
       if (!mounted) return;
 
       setState(() {
         _nomeController.text = data['nome'] ?? '';
-        _emailController.text = data['email'] ?? '';
+        _emailController.text = user?.email ?? '';
         _pesoController.text = data['peso']?.toString() ?? '';
         _alturaController.text = data['altura']?.toString() ?? '';
         _sexo = data['sexo'] ?? 'M';
-
+        _fotoUrl = data['foto_perfil_url'];
         _metaAguaController.text = data['meta_agua']?.toString() ?? '2000';
         _metaSonoController.text = data['meta_sono']?.toString() ?? '8';
         _metaAtividadeController.text =
             data['meta_atividade']?.toString() ?? '30';
         _metaCaloriasController.text =
             data['meta_calorias']?.toString() ?? '2200';
-
-        _avatarUrl = data['avatar_url'] as String?;
         _isLoading = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Erro ao carregar: $e"),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text("Erro: $e"), backgroundColor: Colors.red),
       );
     }
+  }
+
+  Future<void> _escolherFoto() async {
+    final picker = ImagePicker();
+    final image = await picker.pickImage(source: ImageSource.gallery);
+    if (image == null) return;
+
+    try {
+      final bytes = await File(image.path).readAsBytes();
+      final fileExt = image.path.split('.').last;
+      final fileName =
+          '${widget.userId}_${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+      final filePath = fileName;
+
+      await Supabase.instance.client.storage
+          .from('profile-photos')
+          .uploadBinary(filePath, bytes);
+      final publicUrl = Supabase.instance.client.storage
+          .from('profile-photos')
+          .getPublicUrl(filePath);
+
+      await Supabase.instance.client
+          .from('utilizadores')
+          .update({'foto_perfil_url': publicUrl})
+          .eq('id_utilizador', widget.userId);
+
+      if (mounted) {
+        setState(() => _fotoUrl = publicUrl);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("✅ Foto atualizada!"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Erro ao enviar foto: $e"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _alterarEmail() async {
+    final controller = TextEditingController(text: _emailController.text);
+    final senhaController = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("Alterar Email"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                labelText: "Novo Email",
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: senhaController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: "Password Atual",
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("CANCELAR"),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await Supabase.instance.client.auth.updateUser(
+                  UserAttributes(email: controller.text.trim()),
+                );
+                if (mounted) {
+                  setState(
+                    () => _emailController.text = controller.text.trim(),
+                  );
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        "✅ Email atualizado! Verifica o novo email.",
+                      ),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("Erro: $e"),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text("ALTERAR"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _alterarPassword() async {
+    final senhaAtualController = TextEditingController();
+    final senhaNovaController = TextEditingController();
+    final senhaConfirmarController = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("Alterar Password"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: senhaAtualController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: "Password Atual",
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: senhaNovaController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: "Nova Password",
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 15),
+            TextField(
+              controller: senhaConfirmarController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: "Confirmar Password",
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("CANCELAR"),
+          ),
+          TextButton(
+            onPressed: () async {
+              if (senhaNovaController.text != senhaConfirmarController.text) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("❌ Passwords não coincidem!"),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+                return;
+              }
+              Navigator.pop(ctx);
+              try {
+                await Supabase.instance.client.auth.updateUser(
+                  UserAttributes(password: senhaNovaController.text),
+                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("✅ Password atualizada!"),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("Erro: $e"),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text("ALTERAR"),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _guardarAlteracoes() async {
     setState(() => _isLoading = true);
     try {
-      final client = Supabase.instance.client;
-
-      // Atualizar dados na tabela de utilizadores
-      await client
+      await Supabase.instance.client
           .from('utilizadores')
           .update({
             'nome': _nomeController.text.trim(),
-            'email': _emailController.text.trim(),
             'peso': double.tryParse(_pesoController.text),
             'altura': int.tryParse(_alturaController.text),
             'sexo': _sexo,
@@ -107,123 +300,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
             'meta_sono': int.tryParse(_metaSonoController.text),
             'meta_atividade': int.tryParse(_metaAtividadeController.text),
             'meta_calorias': int.tryParse(_metaCaloriasController.text),
-            'avatar_url': _avatarUrl,
           })
           .eq('id_utilizador', widget.userId);
 
-      final novoEmail = _emailController.text.trim();
-      final novaPassword = _passwordController.text.trim();
-      final confirmarPassword = _confirmPasswordController.text.trim();
-
-      // Validar password se o utilizador quiser alterar
-      if (novaPassword.isNotEmpty || confirmarPassword.isNotEmpty) {
-        if (novaPassword != confirmarPassword) {
-          setState(() => _isLoading = false);
-          // ignore: use_build_context_synchronously
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("As passwords não coincidem."),
-              backgroundColor: Colors.red,
-            ),
-          );
-          return;
-        }
-
-        if (novaPassword.length < 6) {
-          setState(() => _isLoading = false);
-          // ignore: use_build_context_synchronously
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                  "A nova password deve ter pelo menos 6 caracteres."),
-              backgroundColor: Colors.red,
-            ),
-          );
-          return;
-        }
-      }
-
-      // Atualizar email/password na autenticação do Supabase
-      if (novoEmail.isNotEmpty || novaPassword.isNotEmpty) {
-        await client.auth.updateUser(
-          UserAttributes(
-            email: novoEmail.isNotEmpty ? novoEmail : null,
-            password: novaPassword.isNotEmpty ? novaPassword : null,
-          ),
-        );
-      }
-
       if (!mounted) return;
-      _passwordController.clear();
-      _confirmPasswordController.clear();
-
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("✅ Dados guardados com sucesso!"),
+          content: Text("✅ Perfil atualizado!"),
           backgroundColor: Colors.green,
-          duration: Duration(seconds: 3),
+          duration: Duration(seconds: 2),
         ),
       );
-
       setState(() => _isLoading = false);
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("❌ Erro: ${e.toString()}"),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 4),
-        ),
-      );
-    }
-  }
-
-  Future<void> _pickAvatar() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 80,
-      maxWidth: 600,
-    );
-
-    if (picked == null) return;
-
-    final file = File(picked.path);
-
-    setState(() {
-      _avatarFile = file;
-    });
-
-    try {
-      final client = Supabase.instance.client;
-      final fileName =
-          'avatar_${widget.userId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-
-      final bytes = await file.readAsBytes();
-
-      await client.storage.from('avatars').uploadBinary(
-            fileName,
-            bytes,
-            fileOptions: const FileOptions(
-              contentType: 'image/jpeg',
-              upsert: true,
-            ),
-          );
-
-      final publicUrl = client.storage.from('avatars').getPublicUrl(fileName);
-
-      if (!mounted) return;
-      setState(() {
-        _avatarUrl = publicUrl;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro ao enviar imagem de perfil: $e'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text("Erro: $e"), backgroundColor: Colors.red),
       );
     }
   }
@@ -234,7 +327,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text("Terminar Sessão"),
-        content: const Text("Tens a certeza que queres sair da tua conta?"),
+        content: const Text("Tens a certeza?"),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -242,16 +335,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           TextButton(
             onPressed: () async {
+              Navigator.pop(ctx);
               await Supabase.instance.client.auth.signOut();
               if (context.mounted) {
-                Navigator.pushNamedAndRemoveUntil(
+                Navigator.pushAndRemoveUntil(
                   context,
-                  '/welcome',
+                  MaterialPageRoute(builder: (context) => const LoginPage()),
                   (route) => false,
                 );
               }
             },
-            child: const Text("SAIR"),
+            child: const Text("SAIR", style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -260,269 +354,254 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-      },
-      child: Scaffold(
-        backgroundColor: Colors.grey[50],
-        appBar: AppBar(
-          backgroundColor: Colors.grey[50],
-          elevation: 0,
-          centerTitle: true,
-          title: const Text(
-            "Perfil",
-            style: TextStyle(
-              color: Colors.black87,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.black87),
-            onPressed: () {
-              Navigator.pop(context);
-            },
-          ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.logout, color: Colors.redAccent),
-              onPressed: () => _confirmarLogout(context),
-            ),
-          ],
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        title: const Text(
+          "Perfil",
+          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
         ),
-        body: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : SingleChildScrollView(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
-                  children: [
-                    GestureDetector(
-                      onTap: _pickAvatar,
-                      child: Stack(
-                        children: [
-                          CircleAvatar(
-                            radius: 60,
-                            backgroundColor:
-                                _sexo == 'M' ? Colors.blue[100] : Colors.pink[100],
-                            backgroundImage: _avatarImageProvider(),
-                            child: (_avatarFile == null &&
-                                    (_avatarUrl == null ||
-                                        _avatarUrl!.isEmpty))
-                                ? Icon(
-                                    _sexo == 'M'
-                                        ? Icons.person
-                                        : Icons.person_outline,
-                                    size: 80,
-                                    color:
-                                        _sexo == 'M' ? Colors.blue : Colors.pink,
-                                  )
-                                : null,
-                          ),
-                          Positioned(
-                            bottom: 0,
-                            right: 0,
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: const BoxDecoration(
-                                color: Colors.black87,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.camera_alt,
-                                color: Colors.white,
-                                size: 20,
-                              ),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+        automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.redAccent),
+            onPressed: () => _confirmarLogout(context),
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                children: [
+                  GestureDetector(
+                    onTap: _escolherFoto,
+                    child: Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 60,
+                          backgroundColor: _sexo == 'M'
+                              ? Colors.blue[100]
+                              : Colors.pink[100],
+                          backgroundImage: _fotoUrl != null
+                              ? NetworkImage(_fotoUrl!)
+                              : null,
+                          child: _fotoUrl == null
+                              ? Icon(
+                                  _sexo == 'M'
+                                      ? Icons.person
+                                      : Icons.person_outline,
+                                  size: 80,
+                                  color: _sexo == 'M'
+                                      ? Colors.blue
+                                      : Colors.pink,
+                                )
+                              : null,
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: const BoxDecoration(
+                              color: Colors.cyan,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.camera_alt,
+                              color: Colors.white,
+                              size: 20,
                             ),
                           ),
-                        ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 25),
+                  _campoTexto(_nomeController, "Nome"),
+                  const SizedBox(height: 15),
+                  GestureDetector(
+                    onTap: _alterarEmail,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 15,
                       ),
-                    ),
-                    const SizedBox(height: 25),
-
-                    _campoTexto(_nomeController, "Nome"),
-                    const SizedBox(height: 15),
-                    _campoTexto(
-                      _emailController,
-                      "Email",
-                      email: true,
-                    ),
-                    const SizedBox(height: 15),
-
-                    Container(
-                      padding: const EdgeInsets.all(15),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(15),
                         border: Border.all(color: Colors.grey[300]!),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      child: Row(
                         children: [
-                          const Text(
-                            "Sexo",
-                            style:
-                                TextStyle(color: Colors.grey, fontSize: 14),
+                          Expanded(
+                            child: Text(
+                              _emailController.text,
+                              style: const TextStyle(fontSize: 16),
+                            ),
                           ),
-                          const SizedBox(height: 10),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _sexoButton(
-                                  'M',
-                                  'Masculino',
-                                  Icons.male,
-                                  Colors.blue,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: _sexoButton(
-                                  'F',
-                                  'Feminino',
-                                  Icons.female,
-                                  Colors.pink,
-                                ),
-                              ),
-                            ],
-                          ),
+                          const Icon(Icons.edit, color: Colors.cyan),
                         ],
                       ),
                     ),
-
-                    const SizedBox(height: 20),
-
-                    Row(
+                  ),
+                  const SizedBox(height: 15),
+                  ElevatedButton.icon(
+                    onPressed: _alterarPassword,
+                    icon: const Icon(Icons.lock, color: Colors.white),
+                    label: const Text(
+                      "Alterar Password",
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      minimumSize: const Size(double.infinity, 50),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  Container(
+                    padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(15),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: _campoTexto(
-                            _pesoController,
-                            "Peso (kg)",
-                            numerico: true,
-                          ),
+                        const Text(
+                          "Sexo",
+                          style: TextStyle(color: Colors.grey, fontSize: 14),
                         ),
-                        const SizedBox(width: 15),
-                        Expanded(
-                          child: _campoTexto(
-                            _alturaController,
-                            "Altura (cm)",
-                            numerico: true,
-                          ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _sexoButton(
+                                'M',
+                                'Masculino',
+                                Icons.male,
+                                Colors.blue,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: _sexoButton(
+                                'F',
+                                'Feminino',
+                                Icons.female,
+                                Colors.pink,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-
-                    const SizedBox(height: 25),
-                    const Text(
-                      "CONTA & SEGURANÇA",
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                        color: Colors.black87,
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _campoTexto(
+                          _pesoController,
+                          "Peso (kg)",
+                          numerico: true,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    _campoTexto(
-                      _passwordController,
-                      "Nova password",
-                      password: true,
-                    ),
-                    _campoTexto(
-                      _confirmPasswordController,
-                      "Confirmar password",
-                      password: true,
-                    ),
-                    const SizedBox(height: 35),
-                    const Text(
-                      "MINHAS METAS",
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                        color: Colors.black87,
+                      const SizedBox(width: 15),
+                      Expanded(
+                        child: _campoTexto(
+                          _alturaController,
+                          "Altura (cm)",
+                          numerico: true,
+                        ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 35),
+                  const Text(
+                    "MINHAS METAS",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: Colors.black87,
                     ),
-                    const SizedBox(height: 15),
-
-                    Container(
-                      padding: const EdgeInsets.all(15),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
+                  ),
+                  const SizedBox(height: 15),
+                  Container(
+                    padding: const EdgeInsets.all(15),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(25),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.05),
+                          blurRadius: 10,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        _campoMeta(
+                          _metaAguaController,
+                          "Meta de Água (ml)",
+                          Icons.water_drop,
+                          Colors.blue,
+                        ),
+                        _campoMeta(
+                          _metaSonoController,
+                          "Meta de Sono (h)",
+                          Icons.bed,
+                          Colors.indigo,
+                        ),
+                        _campoMeta(
+                          _metaAtividadeController,
+                          "Meta de Atividade (min)",
+                          Icons.run_circle,
+                          Colors.green,
+                        ),
+                        _campoMeta(
+                          _metaCaloriasController,
+                          "Meta de Calorias (kcal)",
+                          Icons.restaurant,
+                          Colors.orange,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 35),
+                  ElevatedButton(
+                    onPressed: _guardarAlteracoes,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.cyan,
+                      minimumSize: const Size(double.infinity, 55),
+                      shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(15),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 10,
-                            spreadRadius: 2,
-                          ),
-                        ],
                       ),
-                      child: Column(
-                        children: [
-                          _campoMeta(
-                            _metaAguaController,
-                            "Meta de Água (ml)",
-                            Icons.water_drop,
-                            Colors.blue,
-                          ),
-                          _campoMeta(
-                            _metaSonoController,
-                            "Meta de Sono (h)",
-                            Icons.bed,
-                            Colors.indigo,
-                          ),
-                          _campoMeta(
-                            _metaAtividadeController,
-                            "Meta de Atividade (min)",
-                            Icons.run_circle,
-                            Colors.green,
-                          ),
-                          _campoMeta(
-                            _metaCaloriasController,
-                            "Meta de Calorias (kcal)",
-                            Icons.restaurant,
-                            Colors.orange,
-                          ),
-                        ],
+                      elevation: 0,
+                    ),
+                    child: const Text(
+                      "GUARDAR ALTERAÇÕES",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
                       ),
                     ),
-
-                    const SizedBox(height: 35),
-
-                    ElevatedButton(
-                      onPressed: _guardarAlteracoes,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.cyan,
-                        minimumSize: const Size(double.infinity, 55),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        elevation: 0,
-                      ),
-                      child: const Text(
-                        "GUARDAR ALTERAÇÕES",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
               ),
-      ),
+            ),
     );
-  }
-
-  ImageProvider? _avatarImageProvider() {
-    if (_avatarFile != null) {
-      return FileImage(_avatarFile!);
-    }
-    if (_avatarUrl != null && _avatarUrl!.isNotEmpty) {
-      return NetworkImage(_avatarUrl!);
-    }
-    return null;
   }
 
   Widget _sexoButton(String valor, String label, IconData icon, Color cor) {
@@ -548,8 +627,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               label,
               style: TextStyle(
                 color: isSelected ? cor : Colors.grey,
-                fontWeight:
-                    isSelected ? FontWeight.bold : FontWeight.normal,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),
             ),
           ],
@@ -562,24 +640,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     TextEditingController controller,
     String label, {
     bool numerico = false,
-    bool email = false,
-    bool password = false,
   }) {
-    TextInputType teclado;
-    if (numerico) {
-      teclado = TextInputType.number;
-    } else if (email) {
-      teclado = TextInputType.emailAddress;
-    } else {
-      teclado = TextInputType.text;
-    }
-
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: TextField(
         controller: controller,
-        keyboardType: teclado,
-        obscureText: password,
+        keyboardType: numerico ? TextInputType.number : TextInputType.text,
         style: const TextStyle(color: Colors.black87, fontSize: 16),
         decoration: InputDecoration(
           labelText: label,
@@ -592,12 +658,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(15),
-            borderSide:
-                BorderSide(color: Colors.grey[300]!, width: 1),
+            borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(15),
             borderSide: const BorderSide(color: Colors.cyan, width: 2),
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 20,
+            vertical: 15,
           ),
         ),
       ),
@@ -628,8 +697,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(15),
-            borderSide:
-                BorderSide(color: Colors.grey[200]!, width: 1),
+            borderSide: BorderSide(color: Colors.grey[200]!, width: 1),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(15),

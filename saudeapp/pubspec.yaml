@@ -20,6 +20,8 @@ dependencies:
   shared_preferences: ^2.3.5
   flutter_local_notifications: ^17.2.3
   timezone: ^0.9.4
+  intl: ^0.19.0
+  permission_handler: ^11.3.1
 
 dev_dependencies:
   flutter_test:
@@ -33,7 +35,6 @@ flutter:
   assets:
     - assets/images/logo.png
 
-# Configuração do Splash Screen
 flutter_native_splash:
   color: "#FFFFFF"
   image: assets/images/logo.png

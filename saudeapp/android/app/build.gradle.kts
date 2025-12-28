@@ -10,15 +10,14 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        
         isCoreLibraryDesugaringEnabled = true
-        
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
+        // Correção para o erro da linha 19: jvmTarget como String simples
+        jvmTarget = "17"
     }
 
     defaultConfig {
@@ -32,6 +31,15 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("debug")
+            
+            // CORREÇÃO DOS ERROS DAS LINHAS 34 E 35:
+            isMinifyEnabled = true
+            isShrinkResources = false
+            
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
 }
@@ -41,6 +49,5 @@ flutter {
 }
 
 dependencies {
-    
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
 }

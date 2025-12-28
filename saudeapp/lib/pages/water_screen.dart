@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../repositories/habitos_repository.dart';
+import 'water_history_screen.dart';
 
 class WaterScreen extends StatefulWidget {
   final int userId;
@@ -10,83 +11,68 @@ class WaterScreen extends StatefulWidget {
 }
 
 class _WaterScreenState extends State<WaterScreen> {
-  final int _metaAgua = 2500;
-  int _totalAgua = 0;
-  bool _isLoading = true;
-  List<int> _historicoIds = [];
-  late final HabitosRepository _repo = HabitosRepository.fromSupabase();
+  int _totalMl = 0;
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _carregarDados();
+    _carregarTotal();
   }
 
-  Future<void> _carregarDados() async {
-    if (!mounted) return;
+  Future<void> _carregarTotal() async {
     setState(() => _isLoading = true);
     try {
-      final data = await _repo.obterConsumoAguaDoDia(widget.userId);
-      if (!mounted) return;
-      setState(() {
-        _totalAgua = data.totalMl;
-        _historicoIds = data.registoIds;
-        _isLoading = false;
-      });
-    } catch (e) {
+      final repo = HabitosRepository.fromSupabase();
+      final data = await repo.obterConsumoAguaDoDia(widget.userId);
       if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Erro: ${e.toString()}"),
-            backgroundColor: Colors.red,
-          ),
-        );
+        setState(() {
+          _totalMl = data.totalMl;
+          _isLoading = false;
+        });
       }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _adicionarAgua(int ml) async {
     try {
-      final id = await _repo.registarAgua(widget.userId, ml);
-      if (!mounted) return;
-      setState(() {
-        _totalAgua += ml;
-        _historicoIds.add(id);
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("+$ml ml"),
-          backgroundColor: Colors.cyan,
-          duration: const Duration(milliseconds: 800),
-        ),
-      );
+      final repo = HabitosRepository.fromSupabase();
+      await repo.registarAgua(widget.userId, ml);
+      if (mounted) {
+        setState(() => _totalMl += ml);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("✅ +${ml}ml adicionado!"),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Erro: ${e.toString()}"),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text("Erro: $e"), backgroundColor: Colors.red),
         );
       }
     }
   }
 
-  Future<void> _mostrarDialogPersonalizado() async {
+  void _mostrarDialogoPersonalizado() {
     final controller = TextEditingController();
-    final result = await showDialog<int>(
+    showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text("Quantidade personalizada"),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
           decoration: const InputDecoration(
-            labelText: "Quantidade (ml)",
-            hintText: "Ex: 350",
+            labelText: "Mililitros (ml)",
+            border: OutlineInputBorder(),
           ),
-          autofocus: true,
         ),
         actions: [
           TextButton(
@@ -95,9 +81,10 @@ class _WaterScreenState extends State<WaterScreen> {
           ),
           ElevatedButton(
             onPressed: () {
-              final valor = int.tryParse(controller.text);
-              if (valor != null && valor > 0) {
-                Navigator.pop(ctx, valor);
+              final ml = int.tryParse(controller.text);
+              if (ml != null && ml > 0) {
+                Navigator.pop(ctx);
+                _adicionarAgua(ml);
               }
             },
             child: const Text("ADICIONAR"),
@@ -105,34 +92,14 @@ class _WaterScreenState extends State<WaterScreen> {
         ],
       ),
     );
-    if (result != null) {
-      await _adicionarAgua(result);
-    }
-  }
-
-  Future<void> _removerUltimo() async {
-    if (_historicoIds.isEmpty) return;
-    try {
-      await _repo.apagarRegistoAgua(_historicoIds.last);
-      await _carregarDados();
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Erro ao remover: ${e.toString()}"),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final double progresso = (_totalAgua / _metaAgua).clamp(0.0, 1.0);
+    final percentagem = (_totalMl / 2500 * 100).clamp(0, 100).toInt();
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0D47A1),
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -140,149 +107,149 @@ class _WaterScreenState extends State<WaterScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text('Hidratação', style: TextStyle(color: Colors.white)),
+        title: const Text("Água", style: TextStyle(color: Colors.white)),
         centerTitle: true,
         actions: [
-          if (_historicoIds.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.undo, color: Colors.white70),
-              onPressed: _removerUltimo,
-            ),
+          IconButton(
+            icon: const Icon(Icons.history, color: Colors.white),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      WaterHistoryScreen(userId: widget.userId),
+                ),
+              ).then((_) => _carregarTotal());
+            },
+          ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.white))
-          : Column(
-              children: [
-                const Spacer(),
-                _buildBottle(progresso),
-                const SizedBox(height: 30),
-                Text(
-                  "$_totalAgua ml",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 48,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  "META: $_metaAgua ml",
-                  style: const TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-                const Spacer(),
-                Padding(
+      body: Container(
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF00BCD4), Color(0xFF0097A7)],
+          ),
+        ),
+        child: SafeArea(
+          child: _isLoading
+              ? const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                )
+              : SingleChildScrollView(
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      const SizedBox(height: 20),
+                      Stack(
+                        alignment: Alignment.center,
                         children: [
-                          _quickButton(250, "Copo"),
-                          _quickButton(500, "Garrafa"),
-                          _quickButton(750, "Garrafa+"),
-                        ],
-                      ),
-                      const SizedBox(height: 15),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _mostrarDialogPersonalizado,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white.withValues(
-                              alpha: 0.3,
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 15),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(15),
+                          SizedBox(
+                            width: 200,
+                            height: 200,
+                            child: CircularProgressIndicator(
+                              value: percentagem / 100,
+                              strokeWidth: 15,
+                              backgroundColor: Colors.white.withValues(
+                                alpha: 0.3,
+                              ),
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
                             ),
                           ),
-                          icon: const Icon(Icons.edit, color: Colors.white),
-                          label: const Text(
-                            "PERSONALIZADO",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
+                          Column(
+                            children: [
+                              const Icon(
+                                Icons.water_drop,
+                                color: Colors.white,
+                                size: 60,
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                "$percentagem%",
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 36,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                "${_totalMl}ml / 2500ml",
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 40),
+                      const Text(
+                        "Adicionar água",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Wrap(
+                        spacing: 15,
+                        runSpacing: 15,
+                        alignment: WrapAlignment.center,
+                        children: [
+                          _botaoAgua(100),
+                          _botaoAgua(200),
+                          _botaoAgua(250),
+                          _botaoAgua(330),
+                          _botaoAgua(500),
+                          _botaoAgua(750),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+                      OutlinedButton.icon(
+                        onPressed: _mostrarDialogoPersonalizado,
+                        icon: const Icon(Icons.edit, color: Colors.white),
+                        label: const Text(
+                          "Quantidade personalizada",
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.white, width: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 15,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
                           ),
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 20),
-              ],
-            ),
-    );
-  }
-
-  Widget _buildBottle(double fill) {
-    return SizedBox(
-      width: 120,
-      height: 280,
-      child: Stack(
-        alignment: Alignment.bottomCenter,
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.white, width: 3),
-              borderRadius: BorderRadius.circular(20),
-            ),
-          ),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(17),
-            child: Container(
-              height: 280 * fill,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.cyanAccent.withValues(alpha: 0.8),
-                    Colors.cyan,
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            top: 0,
-            child: Container(
-              width: 40,
-              height: 25,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _quickButton(int ml, String label) {
+  Widget _botaoAgua(int ml) {
     return ElevatedButton(
       onPressed: () => _adicionarAgua(ml),
       style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.white.withValues(alpha: 0.2),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF00BCD4),
+        padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 20),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        elevation: 5,
       ),
-      child: Column(
-        children: [
-          Text(
-            "$ml ml",
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-            ),
-          ),
-          Text(
-            label,
-            style: const TextStyle(color: Colors.white70, fontSize: 11),
-          ),
-        ],
+      child: Text(
+        "${ml}ml",
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
       ),
     );
   }

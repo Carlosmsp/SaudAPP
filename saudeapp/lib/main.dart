@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'pages/welcome_page.dart';
 import 'pages/login_page.dart';
 import 'pages/main_wrapper.dart';
@@ -19,7 +20,9 @@ Future<void> main() async {
     anonKey: SupabaseConfig.anonKey,
   );
 
-  await NotificationService().initNotification();
+  await NotificationService().initialize();
+
+  await Permission.notification.request();
 
   runApp(const MeuAppSaude());
 }

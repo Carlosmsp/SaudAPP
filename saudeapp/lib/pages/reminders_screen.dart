@@ -1,64 +1,194 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../services/notification_service.dart';
 
-/// Ecrã de configuração de Lembretes.
-/// Neste momento as definições ficam apenas em memória.
-/// Mais tarde podemos persistir em Supabase ou SharedPreferences
-/// e ligar a notificações locais.
 class RemindersScreen extends StatefulWidget {
   final int userId;
-
-  const RemindersScreen({
-    super.key,
-    required this.userId,
-  });
+  const RemindersScreen({super.key, required this.userId});
 
   @override
   State<RemindersScreen> createState() => _RemindersScreenState();
 }
 
 class _RemindersScreenState extends State<RemindersScreen> {
-  // ------------------------------
-  //     ESTADO – ÁGUA
-  // ------------------------------
+  final NotificationService _notif = NotificationService();
 
-  /// Se o lembrete de água está ativo ou não.
-  bool _aguaAtivo = true;
-
-  /// Intervalo entre lembretes de água em minutos.
-  /// Ex.: 30 = a cada 30 minutos, 60 = de hora a hora.
+  // Estados dos Lembretes - Água
+  bool _aguaAtivo = false;
   int _intervaloAguaMin = 60;
-
-  /// Texto da mensagem para o lembrete de água.
   String _descAgua = "Bebe um copo de água.";
 
-  // ------------------------------
-  //     ESTADO – SONO
-  // ------------------------------
-
+  // Estados dos Lembretes - Sono
   bool _sonoAtivo = false;
   TimeOfDay _horaSono = const TimeOfDay(hour: 23, minute: 0);
   String _descSono = "Hora de começar a preparar o sono.";
 
-  // ------------------------------
-  //     ESTADO – REFEIÇÕES
-  // ------------------------------
-
-  bool _refeicoesAtivo = true;
-
+  // Estados dos Lembretes - Refeições
+  bool _refeicoesAtivo = false;
   TimeOfDay _horaPeqAlmoco = const TimeOfDay(hour: 8, minute: 0);
   TimeOfDay _horaAlmoco = const TimeOfDay(hour: 13, minute: 0);
   TimeOfDay _horaLanche = const TimeOfDay(hour: 17, minute: 0);
   TimeOfDay _horaJantar = const TimeOfDay(hour: 20, minute: 0);
-
   String _descRefeicoes = "Lembra-te de fazer refeições equilibradas.";
 
-  // ------------------------------
-  //     ESTADO – ATIVIDADE
-  // ------------------------------
-
+  // Estados dos Lembretes - Atividade
   bool _atividadeAtivo = false;
   TimeOfDay _horaAtividade = const TimeOfDay(hour: 18, minute: 0);
   String _descAtividade = "Levanta-te e mexe o corpo!";
+
+  @override
+  void initState() {
+    super.initState();
+    _inicializarApp();
+  }
+
+  Future<void> _inicializarApp() async {
+    await _notif.initialize();
+    await _carregarConfiguracoes();
+  }
+
+  Future<void> _carregarConfiguracoes() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _aguaAtivo = prefs.getBool('agua_ativo') ?? false;
+      _intervaloAguaMin = prefs.getInt('agua_intervalo') ?? 60;
+      _descAgua = prefs.getString('agua_desc') ?? "Bebe um copo de água.";
+
+      _sonoAtivo = prefs.getBool('sono_ativo') ?? false;
+      _horaSono = TimeOfDay(
+        hour: prefs.getInt('sono_hora') ?? 23,
+        minute: prefs.getInt('sono_min') ?? 0,
+      );
+      _descSono =
+          prefs.getString('sono_desc') ?? "Hora de começar a preparar o sono.";
+
+      _refeicoesAtivo = prefs.getBool('refeicoes_ativo') ?? false;
+      _horaPeqAlmoco = TimeOfDay(
+        hour: prefs.getInt('peq_hora') ?? 8,
+        minute: prefs.getInt('peq_min') ?? 0,
+      );
+      _horaAlmoco = TimeOfDay(
+        hour: prefs.getInt('almoco_hora') ?? 13,
+        minute: prefs.getInt('almoco_min') ?? 0,
+      );
+      _horaLanche = TimeOfDay(
+        hour: prefs.getInt('lanche_hora') ?? 17,
+        minute: prefs.getInt('lanche_min') ?? 0,
+      );
+      _horaJantar = TimeOfDay(
+        hour: prefs.getInt('jantar_hora') ?? 20,
+        minute: prefs.getInt('jantar_min') ?? 0,
+      );
+      _descRefeicoes =
+          prefs.getString('refeicoes_desc') ??
+          "Lembra-te de fazer refeições equilibradas.";
+
+      _atividadeAtivo = prefs.getBool('atividade_ativo') ?? false;
+      _horaAtividade = TimeOfDay(
+        hour: prefs.getInt('atividade_hora') ?? 18,
+        minute: prefs.getInt('atividade_min') ?? 0,
+      );
+      _descAtividade =
+          prefs.getString('atividade_desc') ?? "Levanta-te e mexe o corpo!";
+    });
+  }
+
+  Future<void> _guardarConfiguracoes() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('agua_ativo', _aguaAtivo);
+    await prefs.setInt('agua_intervalo', _intervaloAguaMin);
+    await prefs.setString('agua_desc', _descAgua);
+
+    await prefs.setBool('sono_ativo', _sonoAtivo);
+    await prefs.setInt('sono_hora', _horaSono.hour);
+    await prefs.setInt('sono_min', _horaSono.minute);
+    await prefs.setString('sono_desc', _descSono);
+
+    await prefs.setBool('refeicoes_ativo', _refeicoesAtivo);
+    await prefs.setInt('peq_hora', _horaPeqAlmoco.hour);
+    await prefs.setInt('peq_min', _horaPeqAlmoco.minute);
+    await prefs.setInt('almoco_hora', _horaAlmoco.hour);
+    await prefs.setInt('almoco_min', _horaAlmoco.minute);
+    await prefs.setInt('lanche_hora', _horaLanche.hour);
+    await prefs.setInt('lanche_min', _horaLanche.minute);
+    await prefs.setInt('jantar_hora', _horaJantar.hour);
+    await prefs.setInt('jantar_min', _horaJantar.minute);
+    await prefs.setString('refeicoes_desc', _descRefeicoes);
+
+    await prefs.setBool('atividade_ativo', _atividadeAtivo);
+    await prefs.setInt('atividade_hora', _horaAtividade.hour);
+    await prefs.setInt('atividade_min', _horaAtividade.minute);
+    await prefs.setString('atividade_desc', _descAtividade);
+  }
+
+  Future<void> _atualizarNotificacoes() async {
+    await _guardarConfiguracoes();
+
+    if (_aguaAtivo) {
+      await _notif.agendarAguaPeriodica(_intervaloAguaMin, _descAgua);
+    } else {
+      await _notif.cancelarNotificacao(1);
+    }
+
+    if (_sonoAtivo) {
+      await _notif.agendarNotificacao(
+        id: 10,
+        titulo: '🛏️ Sono',
+        corpo: _descSono,
+        hora: _horaSono,
+        channelId: 'sono_channel',
+        channelName: 'Lembretes de Sono',
+      );
+    } else {
+      await _notif.cancelarNotificacao(10);
+    }
+
+    if (_refeicoesAtivo) {
+      final refeicoes = [
+        {'id': 20, 'titulo': '🍳 Pequeno-almoço', 'hora': _horaPeqAlmoco},
+        {'id': 21, 'titulo': '🍽️ Almoço', 'hora': _horaAlmoco},
+        {'id': 22, 'titulo': '🍪 Lanche', 'hora': _horaLanche},
+        {'id': 23, 'titulo': '🍲 Jantar', 'hora': _horaJantar},
+      ];
+      for (var r in refeicoes) {
+        await _notif.agendarNotificacao(
+          id: r['id'] as int,
+          titulo: r['titulo'] as String,
+          corpo: _descRefeicoes,
+          hora: r['hora'] as TimeOfDay,
+          channelId: 'refeicoes_channel',
+          channelName: 'Lembretes de Refeições',
+        );
+      }
+    } else {
+      for (int i = 20; i <= 23; i++) {
+        await _notif.cancelarNotificacao(i);
+      }
+    }
+
+    if (_atividadeAtivo) {
+      await _notif.agendarNotificacao(
+        id: 30,
+        titulo: '🏃 Atividade Física',
+        corpo: _descAtividade,
+        hora: _horaAtividade,
+        channelId: 'atividade_channel',
+        channelName: 'Lembretes de Atividade',
+      );
+    } else {
+      await _notif.cancelarNotificacao(30);
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Lembretes configurados com sucesso!'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,38 +200,14 @@ class _RemindersScreenState extends State<RemindersScreen> {
         centerTitle: true,
         title: const Text(
           "Lembretes",
-          style: TextStyle(
-            color: Colors.black87,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
         ),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () => Navigator.pop(context),
-        ),
+        automaticallyImplyLeading: false,
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          const Text(
-            "PERSONALIZAÇÃO",
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            "Toca em qualquer lembrete para alterar a mensagem e a hora/intervalo.",
-            style: TextStyle(color: Colors.grey),
-          ),
-          const SizedBox(height: 20),
-
-          // ---------- CARTÃO ÁGUA ----------
           _buildCardAgua(),
-
-          // ---------- CARTÃO SONO ----------
           _buildReminderCardHorario(
             titulo: "Sono",
             descricao: _descSono,
@@ -109,27 +215,18 @@ class _RemindersScreenState extends State<RemindersScreen> {
             ativo: _sonoAtivo,
             cor: Colors.indigo,
             icon: Icons.bed,
-            onChangedAtivo: (valor) {
-              setState(() => _sonoAtivo = valor);
-            },
+            onChangedAtivo: (v) => setState(() => _sonoAtivo = v),
             onEditar: () => _editarLembreteHorario(
               tipo: "Sono",
-              ativo: _sonoAtivo,
               horaAtual: _horaSono,
               descricaoAtual: _descSono,
-              onGuardar: (h, d) {
-                setState(() {
-                  _horaSono = h;
-                  _descSono = d;
-                });
-              },
+              onGuardar: (h, d) => setState(() {
+                _horaSono = h;
+                _descSono = d;
+              }),
             ),
           ),
-
-          // ---------- CARTÃO REFEIÇÕES ----------
           _buildCardRefeicoes(),
-
-          // ---------- CARTÃO ATIVIDADE ----------
           _buildReminderCardHorario(
             titulo: "Atividade Física",
             descricao: _descAtividade,
@@ -137,42 +234,36 @@ class _RemindersScreenState extends State<RemindersScreen> {
             ativo: _atividadeAtivo,
             cor: Colors.green,
             icon: Icons.directions_run,
-            onChangedAtivo: (valor) {
-              setState(() => _atividadeAtivo = valor);
-            },
+            onChangedAtivo: (v) => setState(() => _atividadeAtivo = v),
             onEditar: () => _editarLembreteHorario(
               tipo: "Atividade Física",
-              ativo: _atividadeAtivo,
               horaAtual: _horaAtividade,
               descricaoAtual: _descAtividade,
-              onGuardar: (h, d) {
-                setState(() {
-                  _horaAtividade = h;
-                  _descAtividade = d;
-                });
-              },
+              onGuardar: (h, d) => setState(() {
+                _horaAtividade = h;
+                _descAtividade = d;
+              }),
             ),
           ),
+          const SizedBox(height: 100),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _atualizarNotificacoes,
+        backgroundColor: Colors.cyan,
+        icon: const Icon(Icons.save, color: Colors.white),
+        label: const Text(
+          'GUARDAR',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
       ),
     );
   }
 
-  // ===================================================================
-  //                      CARTÃO – ÁGUA (INTERVALO)
-  // ===================================================================
+  // --- MÉTODOS DE UI ---
 
-  /// Constrói o cartão específico para o lembrete de água.
-  /// Aqui mostramos o intervalo (em minutos) em vez de uma hora fixa.
   Widget _buildCardAgua() {
-    final intervaloTexto = _intervaloAguaMin == 30
-        ? "a cada 30 minutos"
-        : _intervaloAguaMin == 45
-            ? "a cada 45 minutos"
-            : _intervaloAguaMin == 60
-                ? "de hora a hora"
-                : "a cada $_intervaloAguaMin minutos";
-
+    final intervaloTexto = "A cada $_intervaloAguaMin min";
     return InkWell(
       onTap: _editarLembreteAgua,
       borderRadius: BorderRadius.circular(15),
@@ -188,11 +279,11 @@ class _RemindersScreenState extends State<RemindersScreen> {
                 : Colors.grey[300]!,
             width: 2,
           ),
-          boxShadow: [
+          boxShadow: const [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
+              color: Colors.black12,
               blurRadius: 10,
-              offset: const Offset(0, 4),
+              offset: Offset(0, 4),
             ),
           ],
         ),
@@ -213,39 +304,27 @@ class _RemindersScreenState extends State<RemindersScreen> {
                 children: [
                   const Text(
                     "Água",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
-                  const SizedBox(height: 4),
                   Text(
                     _descAgua,
                     style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      const Icon(Icons.schedule, size: 16, color: Colors.grey),
-                      const SizedBox(width: 4),
-                      Text(
-                        intervaloTexto,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: _aguaAtivo ? Colors.blue : Colors.grey[700],
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    intervaloTexto,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Colors.blue,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),
             ),
             Switch(
               value: _aguaAtivo,
-              onChanged: (valor) {
-                setState(() => _aguaAtivo = valor);
-              },
+              onChanged: (v) => setState(() => _aguaAtivo = v),
               activeThumbColor: Colors.blue,
             ),
           ],
@@ -254,14 +333,9 @@ class _RemindersScreenState extends State<RemindersScreen> {
     );
   }
 
-  /// Mostra um painel onde o utilizador pode:
-  /// - escolher o intervalo (30, 45, 60, 90, 120 minutos)
-  /// - alterar a mensagem do lembrete de água
   Future<void> _editarLembreteAgua() async {
-    // valores temporários enquanto o utilizador edita
     int intervaloTemp = _intervaloAguaMin;
     final controller = TextEditingController(text: _descAgua);
-
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -270,111 +344,69 @@ class _RemindersScreenState extends State<RemindersScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
       ),
       builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 15),
-                decoration: BoxDecoration(
-                  color: Colors.grey[400],
-                  borderRadius: BorderRadius.circular(4),
-                ),
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
               ),
-              const Text(
-                "Configurar lembrete – Água",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  "Intervalo entre lembretes:",
-                  style: TextStyle(
-                    color: Colors.grey[800],
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-
-              // Escolha rápida de intervalos com ChoiceChips
-              Wrap(
-                spacing: 10,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  for (final minutos in [30, 45, 60, 90, 120])
-                    ChoiceChip(
-                      label: Text("$minutos min"),
-                      selected: intervaloTemp == minutos,
-                      onSelected: (_) {
-                        setState(() {}); // força rebuild do sheet
-                        intervaloTemp = minutos;
-                        (ctx as Element).markNeedsBuild();
-                      },
+                  const Text(
+                    "Configurar Água",
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
+                  const SizedBox(height: 20),
+                  Wrap(
+                    spacing: 10,
+                    children: [30, 45, 60, 90, 120].map((m) {
+                      return ChoiceChip(
+                        label: Text("$m min"),
+                        selected: intervaloTemp == m,
+                        onSelected: (_) =>
+                            setModalState(() => intervaloTemp = m),
+                      );
+                    }).toList(),
+                  ),
+                  const SizedBox(height: 20),
+                  TextField(
+                    controller: controller,
+                    decoration: const InputDecoration(
+                      labelText: "Mensagem",
+                      border: OutlineInputBorder(),
                     ),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.cyan,
+                      minimumSize: const Size(double.infinity, 50),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _intervaloAguaMin = intervaloTemp;
+                        _descAgua = controller.text;
+                      });
+                      Navigator.pop(ctx);
+                    },
+                    child: const Text(
+                      "OK",
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: controller,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  labelText: "Mensagem do lembrete",
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      _intervaloAguaMin = intervaloTemp;
-                      _descAgua = controller.text.trim().isEmpty
-                          ? _descAgua
-                          : controller.text.trim();
-                    });
-                    Navigator.pop(ctx);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.cyan,
-                    minimumSize: const Size(double.infinity, 48),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    "GUARDAR",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
   }
 
-  // ===================================================================
-  //                CARTÃO – SONO / ATIVIDADE (HORA ÚNICA)
-  // ===================================================================
-
-  /// Cartão genérico para lembretes que usam uma única hora (Sono, Atividade).
   Widget _buildReminderCardHorario({
     required String titulo,
     required String descricao,
@@ -387,7 +419,6 @@ class _RemindersScreenState extends State<RemindersScreen> {
   }) {
     final horaStr =
         "${hora.hour.toString().padLeft(2, '0')}:${hora.minute.toString().padLeft(2, '0')}";
-
     return InkWell(
       onTap: onEditar,
       borderRadius: BorderRadius.circular(15),
@@ -401,11 +432,11 @@ class _RemindersScreenState extends State<RemindersScreen> {
             color: ativo ? cor.withValues(alpha: 0.5) : Colors.grey[300]!,
             width: 2,
           ),
-          boxShadow: [
+          boxShadow: const [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
+              color: Colors.black12,
               blurRadius: 10,
-              offset: const Offset(0, 4),
+              offset: Offset(0, 4),
             ),
           ],
         ),
@@ -431,26 +462,18 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       fontSize: 16,
                     ),
                   ),
-                  const SizedBox(height: 4),
                   Text(
                     descricao,
                     style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      const Icon(Icons.access_time,
-                          size: 16, color: Colors.grey),
-                      const SizedBox(width: 4),
-                      Text(
-                        horaStr,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: ativo ? cor : Colors.grey[700],
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    horaStr,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: cor,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),
@@ -466,235 +489,14 @@ class _RemindersScreenState extends State<RemindersScreen> {
     );
   }
 
-  /// Editor genérico com escolha de hora + descrição.
   Future<void> _editarLembreteHorario({
     required String tipo,
-    required bool ativo,
     required TimeOfDay horaAtual,
     required String descricaoAtual,
-    required void Function(TimeOfDay novaHora, String novaDescricao) onGuardar,
+    required Function(TimeOfDay, String) onGuardar,
   }) async {
-    TimeOfDay horaSelecionada =
-        TimeOfDay(hour: horaAtual.hour, minute: horaAtual.minute);
+    TimeOfDay horaSel = horaAtual;
     final controller = TextEditingController(text: descricaoAtual);
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 20,
-            right: 20,
-            top: 20,
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 15),
-                decoration: BoxDecoration(
-                  color: Colors.grey[400],
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              Text(
-                "Configurar lembrete – $tipo",
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  const Icon(Icons.access_time, color: Colors.grey),
-                  const SizedBox(width: 10),
-                  Text(
-                    "Hora atual: "
-                    "${horaSelecionada.hour.toString().padLeft(2, '0')}:"
-                    "${horaSelecionada.minute.toString().padLeft(2, '0')}",
-                    style: const TextStyle(fontSize: 16),
-                  ),
-                  const Spacer(),
-                  TextButton(
-                    onPressed: () async {
-                      final picked = await showTimePicker(
-                        context: ctx,
-                        initialTime: horaSelecionada,
-                      );
-                      if (picked != null) {
-                        horaSelecionada = picked;
-                        (ctx as Element).markNeedsBuild();
-                      }
-                    },
-                    child: const Text("ALTERAR"),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 15),
-              TextField(
-                controller: controller,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  labelText: "Mensagem do lembrete",
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    onGuardar(horaSelecionada, controller.text.trim());
-                    Navigator.pop(ctx);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.cyan,
-                    minimumSize: const Size(double.infinity, 48),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    "GUARDAR",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  // ===================================================================
-  //                 CARTÃO – REFEIÇÕES (4 HORAS)
-  // ===================================================================
-
-  /// Cartão de resumo das refeições, com 4 horários diferentes.
-  Widget _buildCardRefeicoes() {
-    String format(TimeOfDay t) =>
-        "${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}";
-
-    final resumoHorarios =
-        "Peq. almoço ${format(_horaPeqAlmoco)} • "
-        "Almoço ${format(_horaAlmoco)} • "
-        "Lanche ${format(_horaLanche)} • "
-        "Jantar ${format(_horaJantar)}";
-
-    return InkWell(
-      onTap: _editarRefeicoes,
-      borderRadius: BorderRadius.circular(15),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 15),
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(
-            color: _refeicoesAtivo
-                ? Colors.orange.withValues(alpha: 0.5)
-                : Colors.grey[300]!,
-            width: 2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.restaurant,
-                  color: Colors.orange, size: 28),
-            ),
-            const SizedBox(width: 15),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    "Refeições",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _descRefeicoes,
-                    style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    resumoHorarios,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: _refeicoesAtivo
-                          ? Colors.orange[800]
-                          : Colors.grey[700],
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Switch(
-              value: _refeicoesAtivo,
-              onChanged: (valor) {
-                setState(() => _refeicoesAtivo = valor);
-              },
-              activeThumbColor: Colors.orange,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Editor específico para as 4 refeições.
-  /// Permite alterar a hora de cada uma + mensagem de lembrete.
-  Future<void> _editarRefeicoes() async {
-    // Copias temporárias dos horários atuais
-    TimeOfDay peqTemp = _horaPeqAlmoco;
-    TimeOfDay almocoTemp = _horaAlmoco;
-    TimeOfDay lancheTemp = _horaLanche;
-    TimeOfDay jantarTemp = _horaJantar;
-
-    final controller = TextEditingController(text: _descRefeicoes);
-
-    Future<TimeOfDay?> pickTime(
-        BuildContext ctx, TimeOfDay initial) async {
-      final picked = await showTimePicker(
-        context: ctx,
-        initialTime: initial,
-      );
-      return picked;
-    }
-
-    String format(TimeOfDay t) =>
-        "${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}";
-
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -715,112 +517,45 @@ class _RemindersScreenState extends State<RemindersScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 15),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[400],
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                  const Text(
-                    "Configurar lembretes – Refeições",
-                    style: TextStyle(
+                  Text(
+                    tipo,
+                    style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 18,
                     ),
                   ),
                   const SizedBox(height: 20),
-
-                  _rowHoraRefeicao(
-                    ctx: ctx,
-                    label: "Pequeno-almoço",
-                    hora: peqTemp,
+                  ListTile(
+                    title: Text("Hora: ${horaSel.format(context)}"),
+                    trailing: const Icon(Icons.access_time),
                     onTap: () async {
-                      final picked = await pickTime(ctx, peqTemp);
-                      if (picked != null) {
-                        setModalState(() => peqTemp = picked);
-                      }
+                      final p = await showTimePicker(
+                        context: context,
+                        initialTime: horaSel,
+                      );
+                      if (p != null) setModalState(() => horaSel = p);
                     },
-                    format: format,
                   ),
-                  _rowHoraRefeicao(
-                    ctx: ctx,
-                    label: "Almoço",
-                    hora: almocoTemp,
-                    onTap: () async {
-                      final picked = await pickTime(ctx, almocoTemp);
-                      if (picked != null) {
-                        setModalState(() => almocoTemp = picked);
-                      }
-                    },
-                    format: format,
-                  ),
-                  _rowHoraRefeicao(
-                    ctx: ctx,
-                    label: "Lanche",
-                    hora: lancheTemp,
-                    onTap: () async {
-                      final picked = await pickTime(ctx, lancheTemp);
-                      if (picked != null) {
-                        setModalState(() => lancheTemp = picked);
-                      }
-                    },
-                    format: format,
-                  ),
-                  _rowHoraRefeicao(
-                    ctx: ctx,
-                    label: "Jantar",
-                    hora: jantarTemp,
-                    onTap: () async {
-                      final picked = await pickTime(ctx, jantarTemp);
-                      if (picked != null) {
-                        setModalState(() => jantarTemp = picked);
-                      }
-                    },
-                    format: format,
-                  ),
-
-                  const SizedBox(height: 15),
                   TextField(
                     controller: controller,
-                    maxLines: 2,
                     decoration: const InputDecoration(
-                      labelText: "Mensagem geral das refeições",
+                      labelText: "Mensagem",
                       border: OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          _horaPeqAlmoco = peqTemp;
-                          _horaAlmoco = almocoTemp;
-                          _horaLanche = lancheTemp;
-                          _horaJantar = jantarTemp;
-                          _descRefeicoes = controller.text.trim().isEmpty
-                              ? _descRefeicoes
-                              : controller.text.trim();
-                        });
-                        Navigator.pop(ctx);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.cyan,
-                        minimumSize: const Size(double.infinity, 48),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Text(
-                        "GUARDAR",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.cyan,
+                      minimumSize: const Size(double.infinity, 50),
+                    ),
+                    onPressed: () {
+                      onGuardar(horaSel, controller.text);
+                      Navigator.pop(ctx);
+                    },
+                    child: const Text(
+                      "OK",
+                      style: TextStyle(color: Colors.white),
                     ),
                   ),
                 ],
@@ -832,32 +567,110 @@ class _RemindersScreenState extends State<RemindersScreen> {
     );
   }
 
-  /// Linha reutilizável para mostrar/editar a hora de cada refeição.
-  Widget _rowHoraRefeicao({
-    required BuildContext ctx,
-    required String label,
-    required TimeOfDay hora,
-    required VoidCallback onTap,
-    required String Function(TimeOfDay) format,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
-      child: Row(
-        children: [
-          Expanded(child: Text(label)),
-          Text(
-            format(hora),
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
+  Widget _buildCardRefeicoes() {
+    return InkWell(
+      onTap: _editarRefeicoes,
+      borderRadius: BorderRadius.circular(15),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 15),
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: _refeicoesAtivo
+                ? Colors.orange.withValues(alpha: 0.5)
+                : Colors.grey[300]!,
+            width: 2,
+          ),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 10,
+              offset: Offset(0, 4),
             ),
-          ),
-          const SizedBox(width: 10),
-          TextButton(
-            onPressed: onTap,
-            child: const Text("ALTERAR"),
-          ),
-        ],
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.restaurant,
+                color: Colors.orange,
+                size: 28,
+              ),
+            ),
+            const SizedBox(width: 15),
+            const Expanded(
+              child: Text(
+                "Refeições",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+            ),
+            Switch(
+              value: _refeicoesAtivo,
+              onChanged: (v) => setState(() => _refeicoesAtivo = v),
+              activeThumbColor: Colors.orange,
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  Future<void> _editarRefeicoes() async {
+    final controller = TextEditingController(text: _descRefeicoes);
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                "Configurar Refeições",
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: controller,
+                decoration: const InputDecoration(
+                  labelText: "Mensagem geral",
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.cyan,
+                  minimumSize: const Size(double.infinity, 50),
+                ),
+                onPressed: () {
+                  setState(() => _descRefeicoes = controller.text);
+                  Navigator.pop(ctx);
+                },
+                child: const Text("OK", style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
