@@ -10,18 +10,17 @@ class GoalsScreen extends StatefulWidget {
   State<GoalsScreen> createState() => _GoalsScreenState();
 }
 
-class _GoalsScreenState extends State<GoalsScreen>
-    with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
+class _GoalsScreenState extends State<GoalsScreen> with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
   final int _metaAgua = 2500;
   final int _metaCalorias = 2000;
   final int _metaSono = 8;
   final int _metaAtividade = 30;
-
+  
   int _totalAgua = 0;
   int _totalCalorias = 0;
   double _totalSono = 0;
   int _totalAtividade = 0;
-
+  
   bool _isLoading = true;
 
   @override
@@ -50,7 +49,7 @@ class _GoalsScreenState extends State<GoalsScreen>
   Future<void> _carregarDados() async {
     try {
       final repo = HabitosRepository.fromSupabase();
-
+      
       final agua = await repo.obterConsumoAguaDoDia(widget.userId);
       final refeicoes = await repo.obterRefeicoesDoDia(widget.userId);
       final sono = await repo.obterSonoHoje(widget.userId);
@@ -72,7 +71,7 @@ class _GoalsScreenState extends State<GoalsScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-
+    
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
@@ -94,10 +93,7 @@ class _GoalsScreenState extends State<GoalsScreen>
                   children: [
                     const Text(
                       "Metas Diárias",
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 5),
                     const Text(
@@ -107,53 +103,17 @@ class _GoalsScreenState extends State<GoalsScreen>
                     const SizedBox(height: 25),
                     Row(
                       children: [
-                        Expanded(
-                          child: _metaCardCircular(
-                            "Água",
-                            _totalAgua,
-                            _metaAgua,
-                            "ml",
-                            Icons.water_drop,
-                            const Color(0xFF00BCD4),
-                          ),
-                        ),
+                        Expanded(child: _metaCardCircular("Água", _totalAgua, _metaAgua, "ml", Icons.water_drop, const Color(0xFF00BCD4))),
                         const SizedBox(width: 15),
-                        Expanded(
-                          child: _metaCardCircular(
-                            "Calorias",
-                            _totalCalorias,
-                            _metaCalorias,
-                            "kcal",
-                            Icons.restaurant,
-                            const Color(0xFFFF9800),
-                          ),
-                        ),
+                        Expanded(child: _metaCardCircular("Calorias", _totalCalorias, _metaCalorias, "kcal", Icons.restaurant, const Color(0xFFFF9800))),
                       ],
                     ),
                     const SizedBox(height: 15),
                     Row(
                       children: [
-                        Expanded(
-                          child: _metaCardCircular(
-                            "Sono",
-                            _totalSono.toInt(),
-                            _metaSono,
-                            "h",
-                            Icons.bedtime,
-                            const Color(0xFF673AB7),
-                          ),
-                        ),
+                        Expanded(child: _metaCardCircular("Sono", _totalSono.toInt(), _metaSono, "h", Icons.bedtime, const Color(0xFF673AB7))),
                         const SizedBox(width: 15),
-                        Expanded(
-                          child: _metaCardCircular(
-                            "Atividade",
-                            _totalAtividade,
-                            _metaAtividade,
-                            "min",
-                            Icons.directions_run,
-                            const Color(0xFF4CAF50),
-                          ),
-                        ),
+                        Expanded(child: _metaCardCircular("Atividade", _totalAtividade, _metaAtividade, "min", Icons.directions_run, const Color(0xFF4CAF50))),
                       ],
                     ),
                   ],
@@ -163,16 +123,9 @@ class _GoalsScreenState extends State<GoalsScreen>
     );
   }
 
-  Widget _metaCardCircular(
-    String titulo,
-    int atual,
-    int meta,
-    String unidade,
-    IconData icon,
-    Color cor,
-  ) {
+  Widget _metaCardCircular(String titulo, int atual, int meta, String unidade, IconData icon, Color cor) {
     final progresso = (atual / meta).clamp(0.0, 1.0);
-    final percentagem = (progresso * 100).toInt();
+    final percentagem = (progresso * 100).round();
 
     return Container(
       padding: const EdgeInsets.all(20),

@@ -128,6 +128,18 @@ class HabitosRepository {
     });
   }
 
+  Future<void> registarSonoComQualidade(int userId, double horas, DateTime horaDeitar, DateTime horaAcordar, int qualidade) async {
+    final idHabito = await _criarHabito(userId, 'Sono');
+
+    await _client.from('sono').insert({
+      'id_habito': idHabito,
+      'horas_dormidas': horas,
+      'qualidade': qualidade,
+      'hora_deitar': horaDeitar.toIso8601String(),
+      'hora_acordar': horaAcordar.toIso8601String(),
+    });
+  }
+
   Future<double> obterSonoHoje(int userId) async {
     final hoje = DateTime.now();
     final inicioDia = DateTime(hoje.year, hoje.month, hoje.day);
