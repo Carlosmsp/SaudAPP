@@ -3,24 +3,16 @@ import '../repositories/habitos_repository.dart';
 
 class MealsScreen extends StatefulWidget {
   final int userId;
-
-  const MealsScreen({
-    super.key,
-    required this.userId,
-  });
-
+  const MealsScreen({super.key, required this.userId});
   @override
   State<MealsScreen> createState() => _MealsScreenState();
 }
 
 class _MealsScreenState extends State<MealsScreen> {
-  final int _metaCalorias = 2000; // meta diária (ajusta se quiseres)
-
+  final int _metaCalorias = 2000;
   int _totalCalorias = 0;
   bool _isLoading = true;
   List<int> _historicoIds = [];
-
-  // Repositório de hábitos (já criado antes)
   late final HabitosRepository _repo = HabitosRepository.fromSupabase();
 
   @override
@@ -30,11 +22,10 @@ class _MealsScreenState extends State<MealsScreen> {
   }
 
   Future<void> _carregarDados() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
-
     try {
       final data = await _repo.obterRefeicoesDoDia(widget.userId);
-
       if (!mounted) return;
       setState(() {
         _totalCalorias = data.totalCalorias;
@@ -52,54 +43,47 @@ class _MealsScreenState extends State<MealsScreen> {
     required int calorias,
   }) async {
     setState(() => _totalCalorias += calorias);
-
     try {
       final id = await _repo.registarRefeicao(
         userId: widget.userId,
         tipo: tipo,
         calorias: calorias,
       );
-
       if (!mounted) return;
       setState(() => _historicoIds.add(id));
     } catch (e) {
       if (!mounted) return;
-      // desfaz localmente se deu erro na BD
       setState(() => _totalCalorias -= calorias);
     }
   }
 
   Future<void> _desfazerUltimaRefeicao() async {
     if (_historicoIds.isEmpty) return;
-
     final ultimoId = _historicoIds.last;
-
     try {
-      final calorias = await _repo.apagarRegistoRefeicao(ultimoId);
-
+      await _repo.apagarRegistoRefeicao(ultimoId);
       if (!mounted) return;
-      setState(() {
-        _totalCalorias -= calorias;
-        _historicoIds.removeLast();
-      });
+      await _carregarDados();
     } catch (e) {
-      // se algo correr mal, recarrega do servidor
       await _carregarDados();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final progresso = (_totalCalorias / _metaCalorias).clamp(0.0, 1.0);
-
+    final double progresso = (_totalCalorias / _metaCalorias).clamp(0.0, 1.0);
     return Scaffold(
-      backgroundColor: const Color(0xFF1B262F),
+      backgroundColor: const Color(0xFF121B24),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            color: Colors.white,
+            size: 20,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
@@ -107,40 +91,37 @@ class _MealsScreenState extends State<MealsScreen> {
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w300,
+            fontSize: 22,
           ),
         ),
         actions: [
           if (_historicoIds.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.undo, color: Colors.orangeAccent),
+              icon: const Icon(Icons.undo_rounded, color: Colors.orangeAccent),
               onPressed: _desfazerUltimaRefeicao,
             ),
         ],
       ),
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(
-                color: Colors.orangeAccent,
-              ),
-            )
+          ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                // “Gráfico” de progresso (podes trocar se quiseres outro estilo)
                 Expanded(
                   child: Center(
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
                         SizedBox(
-                          width: 220,
-                          height: 220,
+                          width: 250,
+                          height: 250,
                           child: CircularProgressIndicator(
                             value: progresso,
-                            strokeWidth: 16,
-                            backgroundColor:
-                                Colors.white.withValues(alpha: 0.05),
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.orangeAccent.shade200,
+                            strokeWidth: 12,
+                            backgroundColor: Colors.white.withValues(
+                              alpha: 0.1,
+                            ), // Corrigido para evitar erro
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              Colors.orangeAccent,
                             ),
                           ),
                         ),
@@ -151,17 +132,16 @@ class _MealsScreenState extends State<MealsScreen> {
                               "${(progresso * 100).toInt()}%",
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 40,
+                                fontSize: 54,
                                 fontWeight: FontWeight.w100,
                               ),
                             ),
-                            const SizedBox(height: 4),
                             const Text(
                               "CALORIAS",
                               style: TextStyle(
                                 color: Colors.white54,
-                                fontSize: 12,
-                                letterSpacing: 2,
+                                fontSize: 14,
+                                letterSpacing: 4,
                               ),
                             ),
                           ],
@@ -170,61 +150,49 @@ class _MealsScreenState extends State<MealsScreen> {
                     ),
                   ),
                 ),
-
-                // Totais
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 30,
+                    vertical: 30,
+                  ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _info(
-                        "${(_metaCalorias - _totalCalorias).clamp(0, 9999)} kcal",
+                      _infoCard(
+                        "${(_metaCalorias - _totalCalorias).clamp(0, 9999)}",
                         "FALTA",
                       ),
-                      _info(
-                        "$_totalCalorias kcal",
-                        "HOJE",
-                      ),
-                      _info(
-                        "$_totalCalorias kcal",
-                        "META",
-                      ),
+                      _infoCard("$_totalCalorias", "HOJE"),
+                      _infoCard("$_metaCalorias", "META"),
                     ],
                   ),
                 ),
-
-                // Botões de adicionar refeição
                 Container(
-                  padding: const EdgeInsets.only(
-                    top: 30,
-                    bottom: 40,
-                    left: 20,
-                    right: 20,
-                  ),
+                  padding: const EdgeInsets.fromLTRB(25, 40, 25, 50),
                   decoration: const BoxDecoration(
-                    color: Color(0xFFFFF3E0),
+                    color: Color(0xFFFDF5E6),
                     borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(40),
-                      topRight: Radius.circular(40),
+                      topLeft: Radius.circular(50),
+                      topRight: Radius.circular(50),
                     ),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _mealButton(
-                        icon: Icons.free_breakfast,
-                        label: "Peq. almoço",
-                        onTap: () => _perguntarCalorias("Pequeno-almoço"),
+                      _mealIcon(
+                        Icons.coffee_rounded,
+                        "Peq. Almoço",
+                        () => _perguntarCalorias("Pequeno-almoço"),
                       ),
-                      _mealButton(
-                        icon: Icons.lunch_dining,
-                        label: "Almoço",
-                        onTap: () => _perguntarCalorias("Almoço"),
+                      _mealIcon(
+                        Icons.lunch_dining_rounded,
+                        "Almoço",
+                        () => _perguntarCalorias("Almoço"),
                       ),
-                      _mealButton(
-                        icon: Icons.dinner_dining,
-                        label: "Jantar",
-                        onTap: () => _perguntarCalorias("Jantar"),
+                      _mealIcon(
+                        Icons.dinner_dining_rounded,
+                        "Jantar",
+                        () => _perguntarCalorias("Jantar"),
                       ),
                     ],
                   ),
@@ -234,95 +202,76 @@ class _MealsScreenState extends State<MealsScreen> {
     );
   }
 
-  Widget _info(String valor, String label) {
-    return Column(
-      children: [
-        Text(
-          valor,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Text(
-          label,
-          style: const TextStyle(
-            color: Colors.white38,
-            fontSize: 11,
-            letterSpacing: 1.2,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _mealButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.orange.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              icon,
-              size: 30,
-              color: Colors.orange.shade800,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: Colors.orange.shade900,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _perguntarCalorias(String tipo) {
     final controller = TextEditingController();
-
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text("Calorias – $tipo"),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text("Registar $tipo"),
         content: TextField(
           controller: controller,
+          autofocus: true,
           keyboardType: TextInputType.number,
           decoration: const InputDecoration(
-            hintText: "Ex: 500",
-            labelText: "Calorias",
+            labelText: "Quantidade de Calorias",
+            hintText: "Ex: 450", // Ajuda o utilizador
+            suffixText: "kcal", // Unidade clara
+            border: OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text("Cancelar"),
+            child: const Text("CANCELAR", style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orangeAccent,
+            ),
             onPressed: () {
-              final valor = int.tryParse(controller.text);
-              if (valor != null && valor > 0) {
-                _adicionarRefeicao(tipo: tipo, calorias: valor);
+              final v = int.tryParse(controller.text);
+              if (v != null) {
+                _adicionarRefeicao(tipo: tipo, calorias: v);
                 Navigator.pop(ctx);
               }
             },
-            child: const Text("OK"),
+            child: const Text("GUARDAR", style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
   }
+
+  Widget _infoCard(String v, String l) => Column(
+    children: [
+      Text(
+        v,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      Text(l, style: const TextStyle(color: Colors.white38, fontSize: 12)),
+    ],
+  );
+
+  Widget _mealIcon(IconData i, String l, VoidCallback a) => InkWell(
+    onTap: a,
+    child: Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.05),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(i, size: 32, color: Colors.orange),
+        ),
+        const SizedBox(height: 12),
+        Text(l, style: const TextStyle(fontWeight: FontWeight.bold)),
+      ],
+    ),
+  );
 }
