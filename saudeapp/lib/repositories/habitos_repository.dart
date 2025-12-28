@@ -4,84 +4,155 @@ class HabitosRepository {
   final SupabaseClient _client;
   HabitosRepository(this._client);
 
-  factory HabitosRepository.fromSupabase() {
-    return HabitosRepository(Supabase.instance.client);
-  }
+  factory HabitosRepository.fromSupabase() =>
+      HabitosRepository(Supabase.instance.client);
 
-  // --- ÁGUA (Resolve erros do WaterScreen e Goals) ---
-  Future<int> registarAgua(int userId, int quantidadeMl) async {
+  Future<int> _criarHabito(int userId, String tipo) async {
     final res = await _client
-        .from('consumo_agua')
+        .from('habitos')
         .insert({
           'id_utilizador': userId,
-          'quantidade_ml': quantidadeMl,
+          'tipo_habito': tipo,
           'data_registo': DateTime.now().toIso8601String(),
         })
-        .select('id')
+        .select('id_habito')
         .single();
-    return res['id'] as int;
+    return res['id_habito'];
   }
 
-  Future<List<DailyWaterData>> obterConsumoAguaDoDia(int userId) async {
-    final hoje = DateTime.now().toIso8601String().split('T')[0];
-    final List<dynamic> res = await _client
-        .from('consumo_agua')
-        .select()
-        .eq('id_utilizador', userId)
-        .gte('data_registo', '$hoje 00:00:00');
+  Future<DailyWaterData> obterConsumoAguaDoDia(int userId) async {
+    final hoje = DateTime.now();
+    final inicioDia = DateTime(hoje.year, hoje.month, hoje.day);
+    final fimDia = inicioDia.add(const Duration(days: 1));
 
-    return res
-        .map((item) => DailyWaterData(item['id'], item['quantidade_ml']))
-        .toList();
+    final res = await _client
+        .from('bebidas')
+        .select(
+          'id_bebida, quantidade_ml, habitos!inner(id_utilizador, data_registo)',
+        )
+        .gte('habitos.data_registo', inicioDia.toIso8601String())
+        .lt('habitos.data_registo', fimDia.toIso8601String())
+        .eq('habitos.id_utilizador', userId);
+
+    final lista = res as List;
+    int total = lista.fold(0, (sum, e) => sum + (e['quantidade_ml'] as int));
+    return DailyWaterData(
+      lista.map((e) => e['id_bebida'] as int).toList(),
+      total,
+    );
   }
 
-  Future<void> apagarRegistoAgua(int registoId) async {
-    await _client.from('consumo_agua').delete().eq('id', registoId);
+  Future<int> registarAgua(int userId, int ml) async {
+    final idHabito = await _criarHabito(userId, 'Hidratação');
+
+    final res = await _client
+        .from('bebidas')
+        .insert({
+          'id_habito': idHabito,
+          'quantidade_ml': ml,
+          'tipo_bebida': 'Água',
+        })
+        .select('id_bebida')
+        .single();
+    return res['id_bebida'];
   }
 
-  // --- REFEIÇÕES (Resolve erros do MealsScreen e Goals) ---
+  Future<void> apagarRegistoAgua(int id) async {
+    await _client.from('bebidas').delete().eq('id_bebida', id);
+  }
+
+  Future<DailyMealsData> obterRefeicoesDoDia(int userId) async {
+    final hoje = DateTime.now();
+    final inicioDia = DateTime(hoje.year, hoje.month, hoje.day);
+    final fimDia = inicioDia.add(const Duration(days: 1));
+
+    final res = await _client
+        .from('refeicoes')
+        .select(
+          'id_refeicao, calorias_kcal, habitos!inner(id_utilizador, data_registo)',
+        )
+        .gte('habitos.data_registo', inicioDia.toIso8601String())
+        .lt('habitos.data_registo', fimDia.toIso8601String())
+        .eq('habitos.id_utilizador', userId);
+
+    final lista = res as List;
+    int total = lista.fold(0, (sum, e) => sum + (e['calorias_kcal'] as int));
+    return DailyMealsData(
+      lista.map((e) => e['id_refeicao'] as int).toList(),
+      total,
+    );
+  }
+
   Future<int> registarRefeicao({
     required int userId,
     required String tipo,
     required int calorias,
   }) async {
+    final idHabito = await _criarHabito(userId, 'Alimentação');
+
     final res = await _client
         .from('refeicoes')
         .insert({
-          'id_utilizador': userId,
-          'nome_refeicao': tipo,
-          'calorias': calorias,
-          'data_registo': DateTime.now().toIso8601String(),
+          'id_habito': idHabito,
+          'tipo_refeicao': tipo,
+          'calorias_kcal': calorias,
         })
-        .select('id')
+        .select('id_refeicao')
         .single();
-    return res['id'] as int;
+    return res['id_refeicao'];
   }
 
-  Future<List<DailyMealsData>> obterRefeicoesDoDia(int userId) async {
-    final hoje = DateTime.now().toIso8601String().split('T')[0];
-    final List<dynamic> res = await _client
-        .from('refeicoes')
-        .select()
-        .eq('id_utilizador', userId)
-        .gte('data_registo', '$hoje 00:00:00');
-
-    return res
-        .map(
-          (item) => DailyMealsData(
-            item['id'],
-            item['nome_refeicao'] ?? '',
-            item['calorias'],
-          ),
-        )
-        .toList();
+  Future<void> apagarRegistoRefeicao(int id) async {
+    await _client.from('refeicoes').delete().eq('id_refeicao', id);
   }
 
-  Future<void> apagarRegistoRefeicao(int registoId) async {
-    await _client.from('refeicoes').delete().eq('id', registoId);
+  Future<void> registarSono(int userId, double horas) async {
+    final idHabito = await _criarHabito(userId, 'Sono');
+
+    await _client.from('sono').insert({
+      'id_habito': idHabito,
+      'horas_dormidas': horas,
+      'qualidade': 3,
+    });
   }
 
-  // --- ATIVIDADE (Resolve erro Ln 67 do activity_screen) ---
+  Future<void> registarSonoCompleto(int userId, double horas, DateTime horaDeitar, DateTime horaAcordar) async {
+    final idHabito = await _criarHabito(userId, 'Sono');
+
+    await _client.from('sono').insert({
+      'id_habito': idHabito,
+      'horas_dormidas': horas,
+      'qualidade': 3,
+      'hora_deitar': horaDeitar.toIso8601String(),
+      'hora_acordar': horaAcordar.toIso8601String(),
+    });
+  }
+
+  Future<double> obterSonoHoje(int userId) async {
+    final hoje = DateTime.now();
+    final inicioDia = DateTime(hoje.year, hoje.month, hoje.day);
+    final fimDia = inicioDia.add(const Duration(days: 1));
+
+    final res = await _client
+        .from('sono')
+        .select('horas_dormidas, habitos!inner(id_utilizador, data_registo)')
+        .gte('habitos.data_registo', inicioDia.toIso8601String())
+        .lt('habitos.data_registo', fimDia.toIso8601String())
+        .eq('habitos.id_utilizador', userId);
+
+    final lista = res as List;
+    if (lista.isEmpty) return 0.0;
+
+    double total = 0.0;
+    for (var item in lista) {
+      final horas = item['horas_dormidas'];
+      if (horas != null) {
+        total += (horas as num).toDouble();
+      }
+    }
+    return total;
+  }
+
   Future<void> registarAtividade({
     required int userId,
     required String modalidade,
@@ -89,67 +160,35 @@ class HabitosRepository {
     required int duracao,
     required int calorias,
   }) async {
-    await _client.from('atividades_fisicas').insert({
+    await _client.from('atividades').insert({
       'id_utilizador': userId,
       'tipo_atividade': modalidade,
       'distancia_km': distancia,
-      'duracao_minutos': duracao,
-      'calorias_queimadas': calorias,
-      'data_registo': DateTime.now().toIso8601String(),
+      'duracao_segundos': duracao,
+      'ritmo_medio': 0.0,
     });
   }
 
-  // --- SONO (Resolve erro Ln 31 do goals_screen) ---
-  Future<List<dynamic>> obterSonoHoje(int userId) async {
-    final hoje = DateTime.now().toIso8601String().split('T')[0];
-    return await _client
-        .from('registo_sono')
-        .select()
-        .eq('id_utilizador', userId)
-        .gte('data_registo', '$hoje 00:00:00');
-  }
-
-  Future<void> registarSono(int userId, double horas) async {
-    await _client.from('registo_sono').insert({
-      'id_utilizador': userId,
-      'quantidade_horas': horas,
-      'data_registo': DateTime.now().toIso8601String(),
-    });
-  }
-
-  // --- DASHBOARD (Resolve erro Ln 35 do dashboard_page) ---
   Future<Map<String, dynamic>> obterResumoDoDia(int userId) async {
-    try {
-      return await _client
-          .from('resumo_diario')
-          .select()
-          .eq('id_utilizador', userId)
-          .single();
-    } catch (e) {
-      return {'total_agua': 0, 'total_calorias': 0, 'total_sono': 0};
-    }
+    final agua = await obterConsumoAguaDoDia(userId);
+    final refeicoes = await obterRefeicoesDoDia(userId);
+    final sono = await obterSonoHoje(userId);
+    return {
+      'total_agua': agua.totalMl,
+      'total_calorias': refeicoes.totalCalorias,
+      'total_sono': sono,
+    };
   }
 }
 
 class DailyWaterData {
-  final int id;
+  final List<int> registoIds;
   final int totalMl;
-  DailyWaterData(this.id, this.totalMl);
+  DailyWaterData(this.registoIds, this.totalMl);
 }
 
 class DailyMealsData {
-  final int id;
-  final String nome;
+  final List<int> registoIds;
   final int totalCalorias;
-  DailyMealsData(this.id, this.nome, this.totalCalorias);
-}
-
-extension WaterListLogic on List<DailyWaterData> {
-  int get totalMl => fold(0, (sum, item) => sum + item.totalMl);
-  List<int> get registoIds => map((item) => item.id).toList();
-}
-
-extension MealsListLogic on List<DailyMealsData> {
-  int get totalCalorias => fold(0, (sum, item) => sum + item.totalCalorias);
-  List<int> get registoIds => map((item) => item.id).toList();
+  DailyMealsData(this.registoIds, this.totalCalorias);
 }

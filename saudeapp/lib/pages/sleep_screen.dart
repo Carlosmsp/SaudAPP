@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../repositories/habitos_repository.dart';
@@ -5,7 +6,6 @@ import '../repositories/habitos_repository.dart';
 class SleepScreen extends StatefulWidget {
   final int userId;
   const SleepScreen({super.key, required this.userId});
-
   @override
   State<SleepScreen> createState() => _SleepScreenState();
 }
@@ -13,194 +13,201 @@ class SleepScreen extends StatefulWidget {
 class _SleepScreenState extends State<SleepScreen> {
   bool _isSleeping = false;
   DateTime? _startTime;
+  Timer? _timer;
   final HabitosRepository _repo = HabitosRepository.fromSupabase();
 
   @override
   void initState() {
     super.initState();
-    _recuperarEstadoSono();
+    _recuperar();
   }
 
-  Future<void> _recuperarEstadoSono() async {
-    final prefs = await SharedPreferences.getInstance();
-    final startString = prefs.getString('sleep_start_time');
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
 
-    if (startString != null && mounted) {
+  Future<void> _recuperar() async {
+    final prefs = await SharedPreferences.getInstance();
+    final start = prefs.getString('sleep_start');
+    if (start != null && mounted) {
       setState(() {
         _isSleeping = true;
-        _startTime = DateTime.parse(startString);
+        _startTime = DateTime.parse(start);
       });
+      _startTimer();
     }
   }
 
-  Future<void> _toggleSleep() async {
-    final prefs = await SharedPreferences.getInstance();
+  void _startTimer() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) setState(() {});
+    });
+  }
 
+  Future<void> _toggle() async {
+    final prefs = await SharedPreferences.getInstance();
     if (!_isSleeping) {
       final now = DateTime.now();
-      await prefs.setString('sleep_start_time', now.toIso8601String());
-
-      if (!mounted) return;
+      await prefs.setString('sleep_start', now.toIso8601String());
       setState(() {
         _isSleeping = true;
         _startTime = now;
       });
+      _startTimer();
     } else {
-      final endTime = DateTime.now();
-      final difference = endTime.difference(_startTime!);
-      final horasDormidas = double.parse(
-        (difference.inMinutes / 60).toStringAsFixed(1),
-      );
-
-      if (horasDormidas > 0.1) {
-        await _repo.registarSono(widget.userId, horasDormidas);
-
-        // CORREÇÃO DO ERRO BuildContext
-        // Guardamos o messenger antes do await ou verificamos context.mounted logo após
-        if (!mounted) return;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Registado: $horasDormidas horas de sono"),
-            backgroundColor: Colors.indigoAccent,
-          ),
-        );
+      _timer?.cancel();
+      final horaAcordar = DateTime.now();
+      final diff = horaAcordar.difference(_startTime!).inMinutes / 60.0;
+      if (diff > 0.01) {
+        try {
+          await _repo.registarSonoCompleto(
+            widget.userId,
+            double.parse(diff.toStringAsFixed(1)),
+            _startTime!,
+            horaAcordar,
+          );
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text("Erro: ${e.toString()}"),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
       }
-
-      await prefs.remove('sleep_start_time');
-
-      if (!mounted) return;
+      await prefs.remove('sleep_start');
       setState(() {
         _isSleeping = false;
         _startTime = null;
       });
+      if (mounted) Navigator.pop(context);
     }
   }
 
-  void _registoPersonalizado() {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Registo Personalizado"),
-        content: TextField(
-          controller: controller,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(
-            labelText: "Horas dormidas",
-            hintText: "Ex: 7.5",
-            suffixText: "horas",
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("CANCELAR"),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.indigoAccent,
-            ),
-            onPressed: () async {
-              final h = double.tryParse(controller.text);
-              if (h != null) {
-                await _repo.registarSono(widget.userId, h);
+  String _getElapsedTime() {
+    if (!_isSleeping || _startTime == null) return "0h 0m";
+    final diff = DateTime.now().difference(_startTime!);
+    final hours = diff.inHours;
+    final minutes = diff.inMinutes % 60;
+    return "${hours}h ${minutes}m";
+  }
 
-                // CORREÇÃO DO NAVIGATOR: Verifica o context do diálogo
-                if (ctx.mounted) {
-                  Navigator.pop(ctx);
-                }
-              }
-            },
-            child: const Text("GUARDAR", style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
+  int _getCiclos() {
+    if (!_isSleeping || _startTime == null) return 0;
+    final hours = DateTime.now().difference(_startTime!).inHours;
+    return (hours / 1.5).floor();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0D1117),
+      backgroundColor: const Color(0xFF1A1F33),
       appBar: AppBar(
-        title: const Text(
-          "Registo de Sono",
-          style: TextStyle(fontWeight: FontWeight.w300),
-        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text('Sono', style: TextStyle(color: Colors.white)),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit_calendar, color: Colors.indigoAccent),
-            onPressed: _registoPersonalizado,
-            tooltip: "Registo Manual",
-          ),
-        ],
       ),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              padding: const EdgeInsets.all(40),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _isSleeping
-                    ? Colors.indigoAccent.withValues(
-                        alpha: 0.1,
-                      ) // CORREÇÃO withOpacity
-                    : Colors.orangeAccent.withValues(alpha: 0.1),
-              ),
-              child: Icon(
-                _isSleeping ? Icons.nights_stay : Icons.wb_sunny,
-                size: 100,
-                color: _isSleeping ? Colors.indigoAccent : Colors.orangeAccent,
-              ),
+            Icon(
+              _isSleeping ? Icons.bedtime : Icons.wb_sunny,
+              size: 80,
+              color: _isSleeping ? Colors.deepPurpleAccent : Colors.amber,
             ),
-            const SizedBox(height: 40),
-            Text(
-              _isSleeping ? "A descansar..." : "Pronto para dormir?",
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 26,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 10),
-            if (_isSleeping && _startTime != null)
+            const SizedBox(height: 30),
+            if (_isSleeping) ...[
               Text(
-                "Início: ${_startTime!.hour.toString().padLeft(2, '0')}:${_startTime!.minute.toString().padLeft(2, '0')}",
-                style: const TextStyle(color: Colors.grey, fontSize: 16),
+                _getElapsedTime(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 56,
+                  fontWeight: FontWeight.w300,
+                ),
               ),
+              const SizedBox(height: 10),
+              Text(
+                "${_getCiclos()} ciclos de sono",
+                style: const TextStyle(color: Colors.white70, fontSize: 16),
+              ),
+              const SizedBox(height: 30),
+              _buildCycles(_getCiclos()),
+            ] else ...[
+              const Text(
+                "Pronto para dormir?",
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w300,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                "Um ciclo de sono dura ~90 minutos",
+                style: TextStyle(color: Colors.white60, fontSize: 14),
+              ),
+            ],
             const SizedBox(height: 60),
             ElevatedButton(
+              onPressed: _toggle,
               style: ElevatedButton.styleFrom(
                 backgroundColor: _isSleeping
-                    ? Colors.redAccent
-                    : Colors.indigoAccent,
+                    ? Colors.red
+                    : Colors.deepPurpleAccent,
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 60,
+                  horizontal: 50,
                   vertical: 20,
                 ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(30),
                 ),
-                elevation: 10,
               ),
-              onPressed: _toggleSleep,
               child: Text(
-                _isSleeping ? "ACORDAR AGORA" : "COMEÇAR A DORMIR",
+                _isSleeping ? "ACORDAR" : "COMEÇAR A DORMIR",
                 style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
                   color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
                 ),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCycles(int count) {
+    return Wrap(
+      spacing: 8,
+      children: List.generate(
+        8,
+        (i) => Container(
+          width: 35,
+          height: 35,
+          decoration: BoxDecoration(
+            color: i < count
+                ? Colors.deepPurpleAccent
+                : Colors.white.withValues(alpha: 0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: Icon(
+              Icons.nights_stay,
+              size: 18,
+              color: i < count ? Colors.white : Colors.white24,
+            ),
+          ),
         ),
       ),
     );

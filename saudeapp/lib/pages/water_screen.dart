@@ -4,6 +4,7 @@ import '../repositories/habitos_repository.dart';
 class WaterScreen extends StatefulWidget {
   final int userId;
   const WaterScreen({super.key, required this.userId});
+
   @override
   State<WaterScreen> createState() => _WaterScreenState();
 }
@@ -29,99 +30,260 @@ class _WaterScreenState extends State<WaterScreen> {
       if (!mounted) return;
       setState(() {
         _totalAgua = data.totalMl;
-        _historicoIds = List<int>.from(data.registoIds);
+        _historicoIds = data.registoIds;
         _isLoading = false;
       });
     } catch (e) {
-      if (!mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Erro: ${e.toString()}"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
   Future<void> _adicionarAgua(int ml) async {
-    setState(() => _totalAgua += ml);
     try {
       final id = await _repo.registarAgua(widget.userId, ml);
       if (!mounted) return;
-      setState(() => _historicoIds.add(id));
+      setState(() {
+        _totalAgua += ml;
+        _historicoIds.add(id);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("+$ml ml"),
+          backgroundColor: Colors.cyan,
+          duration: const Duration(milliseconds: 800),
+        ),
+      );
     } catch (e) {
-      if (!mounted) setState(() => _totalAgua -= ml);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Erro: ${e.toString()}"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _mostrarDialogPersonalizado() async {
+    final controller = TextEditingController();
+    final result = await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Quantidade personalizada"),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: "Quantidade (ml)",
+            hintText: "Ex: 350",
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("CANCELAR"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final valor = int.tryParse(controller.text);
+              if (valor != null && valor > 0) {
+                Navigator.pop(ctx, valor);
+              }
+            },
+            child: const Text("ADICIONAR"),
+          ),
+        ],
+      ),
+    );
+    if (result != null) {
+      await _adicionarAgua(result);
+    }
+  }
+
+  Future<void> _removerUltimo() async {
+    if (_historicoIds.isEmpty) return;
+    try {
+      await _repo.apagarRegistoAgua(_historicoIds.last);
+      await _carregarDados();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Erro ao remover: ${e.toString()}"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final double progresso = (_totalAgua / _metaAgua).clamp(0.0, 1.0);
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0F171E),
+      backgroundColor: const Color(0xFF0D47A1),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('Hidratação', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w300)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text('Hidratação', style: TextStyle(color: Colors.white)),
         centerTitle: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.undo, color: Colors.cyanAccent),
-            onPressed: () async {
-              if (_historicoIds.isNotEmpty) {
-                await _repo.apagarRegistoAgua(_historicoIds.last);
-                _carregarDados();
-              }
-            },
-          )
+          if (_historicoIds.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.undo, color: Colors.white70),
+              onPressed: _removerUltimo,
+            ),
         ],
       ),
-      body: _isLoading 
-        ? const Center(child: CircularProgressIndicator())
-        : Column(
-            children: [
-              const SizedBox(height: 40),
-              _buildProgressCircle(progresso),
-              const SizedBox(height: 40),
-              _buildQuickAdd(),
-            ],
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: Colors.white))
+          : Column(
+              children: [
+                const Spacer(),
+                _buildBottle(progresso),
+                const SizedBox(height: 30),
+                Text(
+                  "$_totalAgua ml",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 48,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  "META: $_metaAgua ml",
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                const Spacer(),
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _quickButton(250, "Copo"),
+                          _quickButton(500, "Garrafa"),
+                          _quickButton(750, "Garrafa+"),
+                        ],
+                      ),
+                      const SizedBox(height: 15),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _mostrarDialogPersonalizado,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white.withValues(
+                              alpha: 0.3,
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 15),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                          ),
+                          icon: const Icon(Icons.edit, color: Colors.white),
+                          label: const Text(
+                            "PERSONALIZADO",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildBottle(double fill) {
+    return SizedBox(
+      width: 120,
+      height: 280,
+      child: Stack(
+        alignment: Alignment.bottomCenter,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.white, width: 3),
+              borderRadius: BorderRadius.circular(20),
+            ),
           ),
-    );
-  }
-
-  Widget _buildProgressCircle(double progresso) {
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        SizedBox(
-          width: 280, height: 280,
-          child: CircularProgressIndicator(
-            value: progresso,
-            strokeWidth: 10,
-            backgroundColor: Colors.white.withValues(alpha: 0.05),
-            valueColor: const AlwaysStoppedAnimation<Color>(Colors.cyanAccent),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(17),
+            child: Container(
+              height: 280 * fill,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.cyanAccent.withValues(alpha: 0.8),
+                    Colors.cyan,
+                  ],
+                ),
+              ),
+            ),
           ),
-        ),
-        Column(
-          children: [
-            Text("$_totalAgua", style: const TextStyle(color: Colors.white, fontSize: 64, fontWeight: FontWeight.w100)),
-            const Text("ML CONSUMIDOS", style: TextStyle(color: Colors.cyanAccent, letterSpacing: 2, fontSize: 12)),
-          ],
-        ),
-      ],
+          Positioned(
+            top: 0,
+            child: Container(
+              width: 40,
+              height: 25,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildQuickAdd() {
-    return Wrap(
-      spacing: 20,
-      children: [
-        _waterButton(250, "Copo"),
-        _waterButton(500, "Garrafa"),
-        _waterButton(750, "Garrafa XL"),
-      ],
-    );
-  }
-
-  Widget _waterButton(int ml, String label) {
-    return ActionChip(
-      backgroundColor: Colors.cyanAccent.withValues(alpha: 0.1),
-      label: Text("$ml ml", style: const TextStyle(color: Colors.cyanAccent)),
+  Widget _quickButton(int ml, String label) {
+    return ElevatedButton(
       onPressed: () => _adicionarAgua(ml),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.white.withValues(alpha: 0.2),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            "$ml ml",
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white70, fontSize: 11),
+          ),
+        ],
+      ),
     );
   }
 }

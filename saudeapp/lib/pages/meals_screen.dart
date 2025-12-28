@@ -29,249 +29,276 @@ class _MealsScreenState extends State<MealsScreen> {
       if (!mounted) return;
       setState(() {
         _totalCalorias = data.totalCalorias;
-        _historicoIds = List<int>.from(data.registoIds);
+        _historicoIds = data.registoIds;
         _isLoading = false;
       });
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Erro: ${e.toString()}"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
-  Future<void> _adicionarRefeicao({
-    required String tipo,
-    required int calorias,
-  }) async {
-    setState(() => _totalCalorias += calorias);
+  Future<void> _mostrarDialogRefeicao(String tipo, int sugestao) async {
+    final controller = TextEditingController(text: sugestao.toString());
+    final result = await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(tipo),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: "Calorias (kcal)",
+            hintText: "Ex: 650",
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("CANCELAR"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final valor = int.tryParse(controller.text);
+              if (valor != null && valor > 0) {
+                Navigator.pop(ctx, valor);
+              }
+            },
+            child: const Text("REGISTAR"),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null) {
+      await _adicionarRefeicao(tipo, result);
+    }
+  }
+
+  Future<void> _adicionarRefeicao(String tipo, int cal) async {
     try {
       final id = await _repo.registarRefeicao(
         userId: widget.userId,
         tipo: tipo,
-        calorias: calorias,
+        calorias: cal,
       );
       if (!mounted) return;
-      setState(() => _historicoIds.add(id));
+      setState(() {
+        _totalCalorias += cal;
+        _historicoIds.add(id);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("$tipo: +$cal kcal"),
+          backgroundColor: Colors.orange,
+          duration: const Duration(milliseconds: 800),
+        ),
+      );
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _totalCalorias -= calorias);
-    }
-  }
-
-  Future<void> _desfazerUltimaRefeicao() async {
-    if (_historicoIds.isEmpty) return;
-    final ultimoId = _historicoIds.last;
-    try {
-      await _repo.apagarRegistoRefeicao(ultimoId);
-      if (!mounted) return;
-      await _carregarDados();
-    } catch (e) {
-      await _carregarDados();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Erro: ${e.toString()}"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final double progresso = (_totalCalorias / _metaCalorias).clamp(0.0, 1.0);
+    final caloriasRestantes = _metaCalorias - _totalCalorias;
+
     return Scaffold(
-      backgroundColor: const Color(0xFF121B24),
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.white,
         elevation: 0,
-        centerTitle: true,
         leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new,
-            color: Colors.white,
-            size: 20,
-          ),
+          icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Refeições',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w300,
-            fontSize: 22,
-          ),
-        ),
+        title: const Text('Refeições', style: TextStyle(color: Colors.black87)),
+        centerTitle: true,
         actions: [
           if (_historicoIds.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.undo_rounded, color: Colors.orangeAccent),
-              onPressed: _desfazerUltimaRefeicao,
+              icon: const Icon(Icons.undo, color: Colors.orange),
+              onPressed: () async {
+                await _repo.apagarRegistoRefeicao(_historicoIds.last);
+                _carregarDados();
+              },
             ),
         ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                Expanded(
-                  child: Center(
-                    child: Stack(
-                      alignment: Alignment.center,
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(25),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFF6B35), Color(0xFFF7931E)],
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Column(
                       children: [
-                        SizedBox(
-                          width: 250,
-                          height: 250,
-                          child: CircularProgressIndicator(
-                            value: progresso,
-                            strokeWidth: 12,
-                            backgroundColor: Colors.white.withValues(
-                              alpha: 0.1,
-                            ), // Corrigido para evitar erro
-                            valueColor: const AlwaysStoppedAnimation<Color>(
-                              Colors.orangeAccent,
-                            ),
+                        const Icon(
+                          Icons.restaurant,
+                          color: Colors.white,
+                          size: 40,
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          "$_totalCalorias",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 48,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
+                        const Text(
+                          "KCAL HOJE",
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                        const SizedBox(height: 15),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                           children: [
-                            Text(
-                              "${(progresso * 100).toInt()}%",
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 54,
-                                fontWeight: FontWeight.w100,
-                              ),
+                            _infoChip(
+                              "Falta",
+                              "${caloriasRestantes > 0 ? caloriasRestantes : 0}",
                             ),
-                            const Text(
-                              "CALORIAS",
-                              style: TextStyle(
-                                color: Colors.white54,
-                                fontSize: 14,
-                                letterSpacing: 4,
-                              ),
-                            ),
+                            _infoChip("Meta", "$_metaCalorias"),
                           ],
                         ),
                       ],
                     ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 30,
-                    vertical: 30,
+                  const SizedBox(height: 30),
+                  _mealCard(
+                    "Pequeno-almoço",
+                    "Clica para registar",
+                    400,
+                    Icons.coffee,
+                    const Color(0xFFFFB74D),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _infoCard(
-                        "${(_metaCalorias - _totalCalorias).clamp(0, 9999)}",
-                        "FALTA",
-                      ),
-                      _infoCard("$_totalCalorias", "HOJE"),
-                      _infoCard("$_metaCalorias", "META"),
-                    ],
+                  _mealCard(
+                    "Almoço",
+                    "Clica para registar",
+                    800,
+                    Icons.lunch_dining,
+                    const Color(0xFFFF8A65),
                   ),
-                ),
+                  _mealCard(
+                    "Lanche",
+                    "Clica para registar",
+                    200,
+                    Icons.cookie,
+                    const Color(0xFFFFD54F),
+                  ),
+                  _mealCard(
+                    "Jantar",
+                    "Clica para registar",
+                    700,
+                    Icons.dinner_dining,
+                    const Color(0xFFFF7043),
+                  ),
+                ],
+              ),
+            ),
+    );
+  }
+
+  Widget _infoChip(String label, String value) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white70, fontSize: 11),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _mealCard(
+    String nome,
+    String desc,
+    int sugestaoCalorias,
+    IconData icon,
+    Color cor,
+  ) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 15),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        elevation: 2,
+        child: InkWell(
+          onTap: () => _mostrarDialogRefeicao(nome, sugestaoCalorias),
+          borderRadius: BorderRadius.circular(15),
+          child: Padding(
+            padding: const EdgeInsets.all(15),
+            child: Row(
+              children: [
                 Container(
-                  padding: const EdgeInsets.fromLTRB(25, 40, 25, 50),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFFDF5E6),
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(50),
-                      topRight: Radius.circular(50),
-                    ),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: cor.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  child: Icon(icon, color: cor, size: 28),
+                ),
+                const SizedBox(width: 15),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _mealIcon(
-                        Icons.coffee_rounded,
-                        "Peq. Almoço",
-                        () => _perguntarCalorias("Pequeno-almoço"),
+                      Text(
+                        nome,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
                       ),
-                      _mealIcon(
-                        Icons.lunch_dining_rounded,
-                        "Almoço",
-                        () => _perguntarCalorias("Almoço"),
-                      ),
-                      _mealIcon(
-                        Icons.dinner_dining_rounded,
-                        "Jantar",
-                        () => _perguntarCalorias("Jantar"),
+                      Text(
+                        desc,
+                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
                       ),
                     ],
                   ),
+                ),
+                const Icon(
+                  Icons.arrow_forward_ios,
+                  size: 16,
+                  color: Colors.grey,
                 ),
               ],
             ),
-    );
-  }
-
-  void _perguntarCalorias(String tipo) {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text("Registar $tipo"),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            labelText: "Quantidade de Calorias",
-            hintText: "Ex: 450", // Ajuda o utilizador
-            suffixText: "kcal", // Unidade clara
-            border: OutlineInputBorder(),
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("CANCELAR", style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orangeAccent,
-            ),
-            onPressed: () {
-              final v = int.tryParse(controller.text);
-              if (v != null) {
-                _adicionarRefeicao(tipo: tipo, calorias: v);
-                Navigator.pop(ctx);
-              }
-            },
-            child: const Text("GUARDAR", style: TextStyle(color: Colors.white)),
-          ),
-        ],
       ),
     );
   }
-
-  Widget _infoCard(String v, String l) => Column(
-    children: [
-      Text(
-        v,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 24,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-      Text(l, style: const TextStyle(color: Colors.white38, fontSize: 12)),
-    ],
-  );
-
-  Widget _mealIcon(IconData i, String l, VoidCallback a) => InkWell(
-    onTap: a,
-    child: Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.05),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(i, size: 32, color: Colors.orange),
-        ),
-        const SizedBox(height: 12),
-        Text(l, style: const TextStyle(fontWeight: FontWeight.bold)),
-      ],
-    ),
-  );
 }

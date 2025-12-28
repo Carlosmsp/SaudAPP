@@ -29,9 +29,6 @@ class MeuAppSaude extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final session = Supabase.instance.client.auth.currentSession;
-    final user = session?.user;
-
     return MaterialApp(
       title: 'SaudApp',
       debugShowCheckedModeBanner: false,
@@ -40,17 +37,69 @@ class MeuAppSaude extends StatelessWidget {
         brightness: Brightness.dark,
         colorSchemeSeed: Colors.cyan,
       ),
-      home: user != null 
-          ? MainWrapper(
-              userId: int.tryParse(user.id) ?? 1, 
-              nomeUsuario: user.userMetadata?['full_name'] ?? 'Utilizador'
-            ) 
-          : const WelcomePage(),
+      home: const AuthGate(),
       routes: {
         '/login': (context) => const LoginPage(),
         '/welcome': (context) => const WelcomePage(),
-        '/home': (context) => const MainWrapper(nomeUsuario: 'Utilizador', userId: 1),
       },
     );
+  }
+}
+
+class AuthGate extends StatefulWidget {
+  const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  bool _isLoading = true;
+  Widget _initialPage = const WelcomePage();
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAuth();
+  }
+
+  Future<void> _checkAuth() async {
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session?.user != null) {
+      try {
+        final data = await Supabase.instance.client
+            .from('utilizadores')
+            .select('id_utilizador, nome')
+            .eq('user_id', session!.user.id)
+            .maybeSingle();
+
+        if (data != null && mounted) {
+          setState(() {
+            _initialPage = MainWrapper(
+              nomeUsuario: data['nome'],
+              userId: data['id_utilizador'],
+            );
+            _isLoading = false;
+          });
+          return;
+        }
+      } catch (e) {
+        // Ignore error
+      }
+    }
+    if (mounted) {
+      setState(() {
+        _initialPage = const WelcomePage();
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    return _initialPage;
   }
 }

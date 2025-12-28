@@ -29,7 +29,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _carregarDados();
   }
 
-  // Boa prática: Sempre fazer dispose dos controllers para evitar fugas de memória
   @override
   void dispose() {
     _nomeController.dispose();
@@ -56,12 +55,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _nomeController.text = data['nome'] ?? '';
         _pesoController.text = data['peso']?.toString() ?? '';
         _alturaController.text = data['altura']?.toString() ?? '';
-        
+
         _metaAguaController.text = data['meta_agua']?.toString() ?? '2000';
         _metaSonoController.text = data['meta_sono']?.toString() ?? '8';
         _metaAtividadeController.text = data['meta_atividade']?.toString() ?? '30';
         _metaCaloriasController.text = data['meta_calorias']?.toString() ?? '2200';
-        
+
         _isLoading = false;
       });
     } catch (e) {
@@ -91,7 +90,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           backgroundColor: Colors.green,
         ),
       );
-      
+
       setState(() => _isLoading = false);
     } catch (e) {
       if (!mounted) return;
@@ -115,7 +114,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onPressed: () async {
               await Supabase.instance.client.auth.signOut();
               if (context.mounted) {
-                Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+                Navigator.pushNamedAndRemoveUntil(context, '/welcome', (route) => false);
               }
             },
             child: const Text("SAIR", style: TextStyle(color: Colors.red)),
@@ -128,17 +127,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false, 
+      canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
       },
       child: Scaffold(
+        backgroundColor: Colors.grey[50],
         appBar: AppBar(
-          title: const Text("Perfil", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-          backgroundColor: Colors.transparent,
+          title: const Text("Perfil", style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+          backgroundColor: Colors.white,
           elevation: 0,
           centerTitle: true,
-          automaticallyImplyLeading: false, 
+          automaticallyImplyLeading: false,
           actions: [
             IconButton(
               icon: const Icon(Icons.logout, color: Colors.redAccent),
@@ -146,17 +146,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ],
         ),
-        
+
         body: _isLoading
             ? const Center(child: CircularProgressIndicator())
             : SingleChildScrollView(
                 padding: const EdgeInsets.all(20.0),
                 child: Column(
                   children: [
-                    const CircleAvatar(
+                    CircleAvatar(
                       radius: 60,
                       backgroundColor: Colors.cyan,
-                      backgroundImage: NetworkImage('https://api.dicebear.com/7.x/avataaars/png?seed=Luis'),
+                      backgroundImage: NetworkImage(
+                        'https://api.dicebear.com/7.x/avataaars/png?seed=${_nomeController.text}',
+                      ),
                     ),
                     const SizedBox(height: 25),
 
@@ -171,15 +173,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
 
                     const SizedBox(height: 35),
-                    const Text("MINHAS METAS", 
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black87)),
+                    const Text("MINHAS METAS",
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black87)),
                     const SizedBox(height: 15),
 
                     Container(
                       padding: const EdgeInsets.all(15),
                       decoration: BoxDecoration(
-                        color: Colors.grey[100],
+                        color: Colors.white,
                         borderRadius: BorderRadius.circular(25),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.05),
+                            blurRadius: 10,
+                            spreadRadius: 2,
+                          ),
+                        ],
                       ),
                       child: Column(
                         children: [
@@ -192,7 +201,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
 
                     const SizedBox(height: 35),
-                    
+
                     ElevatedButton(
                       onPressed: _guardarAlteracoes,
                       style: ElevatedButton.styleFrom(
@@ -201,8 +210,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                         elevation: 0,
                       ),
-                      child: const Text("GUARDAR ALTERAÇÕES", 
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                      child: const Text("GUARDAR ALTERAÇÕES",
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
                     ),
                     const SizedBox(height: 20),
                   ],
@@ -218,13 +227,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: TextField(
         controller: controller,
         keyboardType: numerico ? TextInputType.number : TextInputType.text,
+        style: const TextStyle(color: Colors.black87, fontSize: 16), // TEXTO PRETO VISÍVEL
         decoration: InputDecoration(
           labelText: label,
+          labelStyle: const TextStyle(color: Colors.grey),
           filled: true,
           fillColor: Colors.white,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(15),
+            borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(15),
+            borderSide: const BorderSide(color: Colors.cyan, width: 2),
+          ),
           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: const BorderSide(color: Colors.cyan, width: 2)),
         ),
       ),
     );
@@ -236,12 +254,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: TextField(
         controller: controller,
         keyboardType: TextInputType.number,
+        style: const TextStyle(color: Colors.black87, fontSize: 16), // TEXTO PRETO VISÍVEL
         decoration: InputDecoration(
           prefixIcon: Icon(icon, color: cor),
           labelText: label,
+          labelStyle: const TextStyle(color: Colors.grey),
           filled: true,
-          fillColor: Colors.white,
+          fillColor: Colors.grey[50],
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(15),
+            borderSide: BorderSide(color: Colors.grey[200]!, width: 1),
+          ),
           focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: cor, width: 2)),
         ),
       ),
