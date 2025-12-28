@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -11,15 +13,21 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _nomeController = TextEditingController();
+  final _emailController = TextEditingController();
   final _pesoController = TextEditingController();
   final _alturaController = TextEditingController();
   final _metaAguaController = TextEditingController();
   final _metaSonoController = TextEditingController();
   final _metaAtividadeController = TextEditingController();
   final _metaCaloriasController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
 
   String _sexo = 'M';
   bool _isLoading = true;
+
+  String? _avatarUrl;
+  File? _avatarFile;
 
   @override
   void initState() {
@@ -30,12 +38,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void dispose() {
     _nomeController.dispose();
+    _emailController.dispose();
     _pesoController.dispose();
     _alturaController.dispose();
     _metaAguaController.dispose();
     _metaSonoController.dispose();
     _metaAtividadeController.dispose();
     _metaCaloriasController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -51,6 +62,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       setState(() {
         _nomeController.text = data['nome'] ?? '';
+        _emailController.text = data['email'] ?? '';
         _pesoController.text = data['peso']?.toString() ?? '';
         _alturaController.text = data['altura']?.toString() ?? '';
         _sexo = data['sexo'] ?? 'M';
@@ -62,6 +74,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _metaCaloriasController.text =
             data['meta_calorias']?.toString() ?? '2200';
 
+        _avatarUrl = data['avatar_url'] as String?;
         _isLoading = false;
       });
     } catch (e) {
@@ -79,10 +92,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _guardarAlteracoes() async {
     setState(() => _isLoading = true);
     try {
-      await Supabase.instance.client
+      final client = Supabase.instance.client;
+
+      // Atualizar dados na tabela de utilizadores
+      await client
           .from('utilizadores')
           .update({
             'nome': _nomeController.text.trim(),
+            'email': _emailController.text.trim(),
             'peso': double.tryParse(_pesoController.text),
             'altura': int.tryParse(_alturaController.text),
             'sexo': _sexo,
@@ -90,16 +107,61 @@ class _ProfileScreenState extends State<ProfileScreen> {
             'meta_sono': int.tryParse(_metaSonoController.text),
             'meta_atividade': int.tryParse(_metaAtividadeController.text),
             'meta_calorias': int.tryParse(_metaCaloriasController.text),
+            'avatar_url': _avatarUrl,
           })
           .eq('id_utilizador', widget.userId);
 
+      final novoEmail = _emailController.text.trim();
+      final novaPassword = _passwordController.text.trim();
+      final confirmarPassword = _confirmPasswordController.text.trim();
+
+      // Validar password se o utilizador quiser alterar
+      if (novaPassword.isNotEmpty || confirmarPassword.isNotEmpty) {
+        if (novaPassword != confirmarPassword) {
+          setState(() => _isLoading = false);
+          // ignore: use_build_context_synchronously
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("As passwords não coincidem."),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+
+        if (novaPassword.length < 6) {
+          setState(() => _isLoading = false);
+          // ignore: use_build_context_synchronously
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  "A nova password deve ter pelo menos 6 caracteres."),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+      }
+
+      // Atualizar email/password na autenticação do Supabase
+      if (novoEmail.isNotEmpty || novaPassword.isNotEmpty) {
+        await client.auth.updateUser(
+          UserAttributes(
+            email: novoEmail.isNotEmpty ? novoEmail : null,
+            password: novaPassword.isNotEmpty ? novaPassword : null,
+          ),
+        );
+      }
+
       if (!mounted) return;
+      _passwordController.clear();
+      _confirmPasswordController.clear();
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("✅ Perfil atualizado com sucesso!"),
+          content: Text("✅ Dados guardados com sucesso!"),
           backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
+          duration: Duration(seconds: 3),
         ),
       );
 
@@ -112,6 +174,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
           content: Text("❌ Erro: ${e.toString()}"),
           backgroundColor: Colors.red,
           duration: const Duration(seconds: 4),
+        ),
+      );
+    }
+  }
+
+  Future<void> _pickAvatar() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+      maxWidth: 600,
+    );
+
+    if (picked == null) return;
+
+    final file = File(picked.path);
+
+    setState(() {
+      _avatarFile = file;
+    });
+
+    try {
+      final client = Supabase.instance.client;
+      final fileName =
+          'avatar_${widget.userId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+      final bytes = await file.readAsBytes();
+
+      await client.storage.from('avatars').uploadBinary(
+            fileName,
+            bytes,
+            fileOptions: const FileOptions(
+              contentType: 'image/jpeg',
+              upsert: true,
+            ),
+          );
+
+      final publicUrl = client.storage.from('avatars').getPublicUrl(fileName);
+
+      if (!mounted) return;
+      setState(() {
+        _avatarUrl = publicUrl;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao enviar imagem de perfil: $e'),
+          backgroundColor: Colors.red,
         ),
       );
     }
@@ -140,7 +251,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 );
               }
             },
-            child: const Text("SAIR", style: TextStyle(color: Colors.red)),
+            child: const Text("SAIR"),
           ),
         ],
       ),
@@ -157,6 +268,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Scaffold(
         backgroundColor: Colors.grey[50],
         appBar: AppBar(
+          backgroundColor: Colors.grey[50],
+          elevation: 0,
+          centerTitle: true,
           title: const Text(
             "Perfil",
             style: TextStyle(
@@ -164,10 +278,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               fontWeight: FontWeight.bold,
             ),
           ),
-          backgroundColor: Colors.white,
-          elevation: 0,
-          centerTitle: true,
-          automaticallyImplyLeading: false,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.black87),
+            onPressed: () {
+              Navigator.pop(context);
+            },
+          ),
           actions: [
             IconButton(
               icon: const Icon(Icons.logout, color: Colors.redAccent),
@@ -181,40 +297,56 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.all(20.0),
                 child: Column(
                   children: [
-                    Stack(
-                      children: [
-                        CircleAvatar(
-                          radius: 60,
-                          backgroundColor: _sexo == 'M'
-                              ? Colors.blue[100]
-                              : Colors.pink[100],
-                          child: Icon(
-                            _sexo == 'M' ? Icons.person : Icons.person_outline,
-                            size: 80,
-                            color: _sexo == 'M' ? Colors.blue : Colors.pink,
+                    GestureDetector(
+                      onTap: _pickAvatar,
+                      child: Stack(
+                        children: [
+                          CircleAvatar(
+                            radius: 60,
+                            backgroundColor:
+                                _sexo == 'M' ? Colors.blue[100] : Colors.pink[100],
+                            backgroundImage: _avatarImageProvider(),
+                            child: (_avatarFile == null &&
+                                    (_avatarUrl == null ||
+                                        _avatarUrl!.isEmpty))
+                                ? Icon(
+                                    _sexo == 'M'
+                                        ? Icons.person
+                                        : Icons.person_outline,
+                                    size: 80,
+                                    color:
+                                        _sexo == 'M' ? Colors.blue : Colors.pink,
+                                  )
+                                : null,
                           ),
-                        ),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              color: _sexo == 'M' ? Colors.blue : Colors.pink,
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              _sexo == 'M' ? Icons.male : Icons.female,
-                              color: Colors.white,
-                              size: 20,
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: const BoxDecoration(
+                                color: Colors.black87,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.camera_alt,
+                                color: Colors.white,
+                                size: 20,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 25),
 
                     _campoTexto(_nomeController, "Nome"),
+                    const SizedBox(height: 15),
+                    _campoTexto(
+                      _emailController,
+                      "Email",
+                      email: true,
+                    ),
                     const SizedBox(height: 15),
 
                     Container(
@@ -229,7 +361,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         children: [
                           const Text(
                             "Sexo",
-                            style: TextStyle(color: Colors.grey, fontSize: 14),
+                            style:
+                                TextStyle(color: Colors.grey, fontSize: 14),
                           ),
                           const SizedBox(height: 10),
                           Row(
@@ -257,7 +390,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
 
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 20),
+
                     Row(
                       children: [
                         Expanded(
@@ -278,6 +412,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
 
+                    const SizedBox(height: 25),
+                    const Text(
+                      "CONTA & SEGURANÇA",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    _campoTexto(
+                      _passwordController,
+                      "Nova password",
+                      password: true,
+                    ),
+                    _campoTexto(
+                      _confirmPasswordController,
+                      "Confirmar password",
+                      password: true,
+                    ),
                     const SizedBox(height: 35),
                     const Text(
                       "MINHAS METAS",
@@ -293,7 +447,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       padding: const EdgeInsets.all(15),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(25),
+                        borderRadius: BorderRadius.circular(15),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.05),
@@ -361,6 +515,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  ImageProvider? _avatarImageProvider() {
+    if (_avatarFile != null) {
+      return FileImage(_avatarFile!);
+    }
+    if (_avatarUrl != null && _avatarUrl!.isNotEmpty) {
+      return NetworkImage(_avatarUrl!);
+    }
+    return null;
+  }
+
   Widget _sexoButton(String valor, String label, IconData icon, Color cor) {
     final isSelected = _sexo == valor;
     return InkWell(
@@ -384,7 +548,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               label,
               style: TextStyle(
                 color: isSelected ? cor : Colors.grey,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                fontWeight:
+                    isSelected ? FontWeight.bold : FontWeight.normal,
               ),
             ),
           ],
@@ -397,12 +562,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
     TextEditingController controller,
     String label, {
     bool numerico = false,
+    bool email = false,
+    bool password = false,
   }) {
+    TextInputType teclado;
+    if (numerico) {
+      teclado = TextInputType.number;
+    } else if (email) {
+      teclado = TextInputType.emailAddress;
+    } else {
+      teclado = TextInputType.text;
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: TextField(
         controller: controller,
-        keyboardType: numerico ? TextInputType.number : TextInputType.text,
+        keyboardType: teclado,
+        obscureText: password,
         style: const TextStyle(color: Colors.black87, fontSize: 16),
         decoration: InputDecoration(
           labelText: label,
@@ -415,15 +592,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(15),
-            borderSide: BorderSide(color: Colors.grey[300]!, width: 1),
+            borderSide:
+                BorderSide(color: Colors.grey[300]!, width: 1),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(15),
             borderSide: const BorderSide(color: Colors.cyan, width: 2),
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 15,
           ),
         ),
       ),
@@ -454,7 +628,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(15),
-            borderSide: BorderSide(color: Colors.grey[200]!, width: 1),
+            borderSide:
+                BorderSide(color: Colors.grey[200]!, width: 1),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(15),
