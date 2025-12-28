@@ -19,15 +19,12 @@ class _LoginPageState extends State<LoginPage> {
     try {
       final supabase = Supabase.instance.client;
 
-      // 1. LOGIN SEGURO (Valida no Auth, não na tabela pública)
-      // Resolve o problema da password estar NULL na tabela utilizadores
       final AuthResponse res = await supabase.auth.signInWithPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
       if (res.user != null && mounted) {
-        // 2. BUSCAR PERFIL (Vai buscar o nome e o ID_UTILIZADOR)
         final data = await supabase
             .from('utilizadores')
             .select('id_utilizador, nome')
@@ -105,7 +102,6 @@ class _LoginPageState extends State<LoginPage> {
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        // CORREÇÃO DO AVISO: Usando withValues em vez de withOpacity
                         color: Colors.black.withValues(alpha: 0.1),
                         blurRadius: 15,
                       ),
@@ -116,18 +112,78 @@ class _LoginPageState extends State<LoginPage> {
                       TextField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
-                        decoration: const InputDecoration(
+                        style: const TextStyle(
+                          color: Colors.black87,
+                          fontSize: 16,
+                        ),
+                        decoration: InputDecoration(
                           labelText: "Email",
-                          prefixIcon: Icon(Icons.email_outlined),
+                          labelStyle: const TextStyle(color: Colors.grey),
+                          hintText: "luis@mail.com",
+                          hintStyle: TextStyle(color: Colors.grey[400]),
+                          prefixIcon: const Icon(
+                            Icons.email_outlined,
+                            color: Colors.blueAccent,
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[50],
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: Colors.grey[300]!,
+                              width: 1,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Colors.blueAccent,
+                              width: 2,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 15),
                       TextField(
                         controller: _passwordController,
                         obscureText: true,
-                        decoration: const InputDecoration(
+                        style: const TextStyle(
+                          color: Colors.black87,
+                          fontSize: 16,
+                        ),
+                        decoration: InputDecoration(
                           labelText: "Password",
-                          prefixIcon: Icon(Icons.lock_outline),
+                          labelStyle: const TextStyle(color: Colors.grey),
+                          hintText: "••••••",
+                          hintStyle: TextStyle(color: Colors.grey[400]),
+                          prefixIcon: const Icon(
+                            Icons.lock_outline,
+                            color: Colors.blueAccent,
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey[50],
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: Colors.grey[300]!,
+                              width: 1,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: Colors.blueAccent,
+                              width: 2,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 30),
@@ -147,6 +203,7 @@ class _LoginPageState extends State<LoginPage> {
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
+                                  fontSize: 16,
                                 ),
                               ),
                             ),
