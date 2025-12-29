@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'login_page.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ProfileScreen extends StatefulWidget {
   final int userId;
@@ -352,10 +353,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  /// Abre a página de atualizações da aplicação num browser externo.
+  /// Caso não seja possível abrir, apresenta uma mensagem de erro ao utilizador.
+  Future<void> _procurarAtualizacoes() async {
+    final uri = Uri.parse(
+      'http://87.196.41.131:5244/d/Toshiba/SaudApp/Atualiza%C3%A7%C3%B5es/app-release.apk?sign=ZU6aczJJIBMpnb8EeNddvnlfUO2gHtrzSvLNwFpAg0o=:0',
+    );
+
+    // Tenta abrir o link numa aplicação externa (por exemplo, o browser padrão).
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Não foi possível abrir a página de atualizações."),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: const Color.fromARGB(255, 239, 238, 238),
       appBar: AppBar(
         title: const Text(
           "Perfil",
@@ -429,7 +448,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 20,
-                        vertical: 15,
+                        vertical: 10,
                       ),
                       decoration: BoxDecoration(
                         color: Colors.white,
@@ -598,6 +617,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
+                  // Botão para procurar atualizações da aplicação.
+                  // Abre a página de atualizações no browser predefinido.
+                  OutlinedButton.icon(
+                  onPressed: _procurarAtualizacoes,
+                  icon: const Icon(Icons.system_update),
+                  label: const Text(
+                    "PROCURAR ATUALIZAÇÕES",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 55),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    side: const BorderSide(
+                      color: Colors.cyan,
+                      width: 1.5,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
                 ],
               ),
             ),
