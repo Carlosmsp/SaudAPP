@@ -397,7 +397,7 @@ class _MealsScreenState extends State<MealsScreen> {
 }
 
 /// Diálogo autónomo para seleccionar alimentos de uma refeição
-/// e opcionalmente adicionar alimentos novos (nome + calorias).
+/// e a opção de adicionar alimentos novos (nome + calorias).
 class SelecionarRefeicaoDialog extends StatefulWidget {
   final String tipo;
   final int sugestao;
